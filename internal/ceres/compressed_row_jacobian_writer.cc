@@ -71,15 +71,19 @@ void CompressedRowJacobianWriter::PopulateJacobianRowAndColumnBlockVectors(
 void CompressedRowJacobianWriter::GetOrderedParameterBlocks(
     const Program* program,
     int residual_id,
-    std::vector<std::pair<int, int>>* evaluated_jacobian_blocks) {
+    std::vector<std::pair<int, int>>* evaluated_jacobian_blocks,
+    bool get_active_parameter_index) {
   auto residual_block = program->residual_blocks()[residual_id];
   const int num_parameter_blocks = residual_block->NumParameterBlocks();
 
+  int active_parameter_index = 0;
   for (int j = 0; j < num_parameter_blocks; ++j) {
     auto parameter_block = residual_block->parameter_blocks()[j];
     if (!parameter_block->IsConstant()) {
+      int index = get_active_parameter_index ? active_parameter_index : j;
       evaluated_jacobian_blocks->push_back(
-          std::make_pair(parameter_block->index(), j));
+          std::make_pair(parameter_block->index(), index));
+      active_parameter_index++;
     }
   }
   std::sort(evaluated_jacobian_blocks->begin(),
@@ -230,6 +234,68 @@ void CompressedRowJacobianWriter::Write(int residual_id,
                 column_block_begin);
     }
     col_pos += parameter_block_size;
+  }
+}
+
+void CompressedRowJacobianWriter::CreateJacobianPerResidualLayout(
+    std::vector<int>* jacobian_per_residual_layout,
+    std::vector<int>* jacobian_per_residual_offsets,
+    int* num_jacobian_values) {
+  int total_residuals = 0;
+  for (int residual_id = 0; residual_id < program_->NumResidualBlocks(); ++residual_id) {
+    auto residual_block = program_->residual_blocks()[residual_id];
+    const int num_residuals = residual_block->NumResiduals();
+    const int num_parameter_blocks = residual_block->NumParameterBlocks();
+
+    for (int j = 0; j < num_parameter_blocks; ++j) {
+      auto parameter_block = residual_block->parameter_blocks()[j];
+      if (!parameter_block->IsConstant()) {
+        total_residuals += num_residuals;
+      }
+    }
+  }
+
+  jacobian_per_residual_layout->resize(program_->NumResidualBlocks());
+  jacobian_per_residual_offsets->resize(total_residuals, -1);
+
+  *num_jacobian_values = 0;
+  int jacobian_per_residual_pos = 0;
+  int row_start = 0;
+
+  for (int residual_id = 0; residual_id < program_->NumResidualBlocks(); ++residual_id) {
+    auto residual_block = program_->residual_blocks()[residual_id];
+    const int num_residuals = residual_block->NumResiduals();
+    (*jacobian_per_residual_layout)[residual_id] = jacobian_per_residual_pos;
+
+    std::vector<std::pair<int, int>> evaluated_jacobian_blocks;
+    GetOrderedParameterBlocks(program_,
+                              residual_id,
+                              &evaluated_jacobian_blocks,
+                              true);
+
+    for (int r = 0; r < num_residuals; ++r) {
+      int col_pos = 0;
+
+      // Iterate over the jacobian blocks in increasing order of their
+      // positions in the reduced parameter vector.
+      for (auto& evaluated_jacobian_block : evaluated_jacobian_blocks) {
+        auto parameter_block =
+            program_->parameter_blocks()[evaluated_jacobian_block.first];
+        const int parameter_block_size = parameter_block->TangentSize();
+        const int parameter_block_index = evaluated_jacobian_block.second;
+
+        (*jacobian_per_residual_offsets)[jacobian_per_residual_pos +
+                                         r +
+                                         num_residuals * parameter_block_index] =
+            row_start + col_pos;
+        col_pos += parameter_block_size;
+        *num_jacobian_values += parameter_block_size;
+      }
+
+      row_start = row_start + col_pos;
+    }
+
+    jacobian_per_residual_pos += evaluated_jacobian_blocks.size() * num_residuals;
   }
 }
 

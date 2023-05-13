@@ -78,6 +78,15 @@ class CudaBuffer {
     }
   }
 
+  // Free the GPU memory buffer.
+  void Free() {
+    if (data_ != nullptr) {
+      CHECK_EQ(cudaFree(data_), cudaSuccess);
+      data_ = nullptr;
+      size_ = 0;
+    }
+  }
+
   // Perform an asynchronous copy from CPU memory to GPU memory managed by this
   // CudaBuffer instance using the stream provided.
   void CopyFromCpu(const T* data, const size_t size) {
@@ -146,6 +155,17 @@ class CudaBuffer {
              cudaSuccess);
   }
 
+  // Fills the buffer with zeroes.
+  void Zero() {
+    if (size_) {
+      CHECK_EQ(cudaMemsetAsync(data_,
+                               0,
+                               size_ * sizeof(T),
+                               context_->DefaultStream()),
+               cudaSuccess);
+    }
+  }
+
   // Return a pointer to the GPU memory managed by this CudaBuffer instance.
   T* data() { return data_; }
   const T* data() const { return data_; }
@@ -163,3 +183,5 @@ class CudaBuffer {
 #endif  // CERES_NO_CUDA
 
 #endif  // CERES_INTERNAL_CUDA_BUFFER_H_
+
+

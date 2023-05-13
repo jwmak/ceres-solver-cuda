@@ -276,9 +276,15 @@ bool SetupEvaluator(PreprocessedProblem* pp) {
   pp->evaluator_options.context = pp->problem->context();
   pp->evaluator_options.evaluation_callback =
       pp->reduced_program->mutable_evaluation_callback();
+  pp->evaluator_options.use_cuda = options.use_cuda_for_evaluator;
+  // If a pointer to a RegisteredCUDAEvaluators was passed in
+  // Solver::Options, we now assign it to Evaluator::Options.
+  // This object is used to construct a ProgramEvaluatorCUDA.
+  if (pp->evaluator_options.use_cuda)
+    pp->evaluator_options.registered_cuda_evaluators =
+        options.registered_cuda_evaluators;
   pp->evaluator = Evaluator::Create(
       pp->evaluator_options, pp->reduced_program.get(), &pp->error);
-
   return (pp->evaluator != nullptr);
 }
 

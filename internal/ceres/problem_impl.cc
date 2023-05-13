@@ -51,6 +51,7 @@
 #include "ceres/evaluator.h"
 #include "ceres/internal/export.h"
 #include "ceres/internal/fixed_array.h"
+#include "ceres/internal/residual_block_cuda.h"
 #include "ceres/loss_function.h"
 #include "ceres/manifold.h"
 #include "ceres/map_util.h"
@@ -334,6 +335,7 @@ ResidualBlockId ProblemImpl::AddResidualBlock(
     }
   }
 
+  new_residual_block->set_index(program_->residual_blocks_.size());
   program_->residual_blocks_.push_back(new_residual_block);
 
   if (options_.enable_fast_removal) {
@@ -351,6 +353,18 @@ ResidualBlockId ProblemImpl::AddResidualBlock(
       loss_function != nullptr) {
     ++loss_function_ref_count_[loss_function];
   }
+
+  return new_residual_block;
+}
+
+ResidualBlockId ProblemImpl::AddResidualBlockCUDA(
+    ResidualBlockCUDA* residual_block_cuda,
+    CostFunction* cost_function,
+    double* const* const parameter_blocks,
+    int num_parameter_blocks) {
+  auto* new_residual_block =
+      AddResidualBlock(cost_function, nullptr, parameter_blocks, num_parameter_blocks);
+  new_residual_block->SetResidualBlockCUDA(residual_block_cuda);
 
   return new_residual_block;
 }

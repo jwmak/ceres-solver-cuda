@@ -74,6 +74,7 @@ class CERES_NO_EXPORT SparseMatrix : public LinearOperator {
                                   double* y) const override = 0;
 
   // y += A'x;
+  using LinearOperator::LeftMultiplyAndAccumulate;
   void LeftMultiplyAndAccumulate(const double* x, double* y) const override = 0;
 
   // In MATLAB notation sum(A.*A, 1)

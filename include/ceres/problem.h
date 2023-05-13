@@ -40,7 +40,9 @@
 #include <memory>
 #include <set>
 #include <vector>
+#include "ceres/internal/config.h"
 
+#include "ceres/autodiff_cost_function.h"
 #include "ceres/context.h"
 #include "ceres/internal/disable_warnings.h"
 #include "ceres/internal/export.h"
@@ -58,10 +60,12 @@ class Solver;
 struct CRSMatrix;
 
 namespace internal {
+class ContextImpl;
 class Preprocessor;
 class ProblemImpl;
 class ParameterBlock;
 class ResidualBlock;
+class ResidualBlockCUDA;
 }  // namespace internal
 
 // A ResidualBlockId is an opaque handle clients can use to remove residual
@@ -252,6 +256,22 @@ class CERES_EXPORT Problem {
                                    LossFunction* loss_function,
                                    double* const* const parameter_blocks,
                                    int num_parameter_blocks);
+
+  // Add a residual block and an associated ResidualBlockCUDA.
+  //
+  // Like the other AddResidualBlock() methods, this method
+  // creates a new ResidualBlock using the cost function and
+  // information about the parameter blocks. This method
+  // also assigns a ResidualBlockCUDA that has already been
+  // created for the cost function to the newly created ResidualBlock.
+  // The ResidualBlock takes ownership of the ResidualBlockCUDA.
+  ResidualBlockId AddResidualBlockCUDA(
+      internal::ResidualBlockCUDA* residual_block_duda,
+      CostFunction* cost_function,
+      double* const* const parameter_blocks,
+      int num_parameter_blocks);
+
+  internal::ContextImpl* context();
 
   // Add a parameter block with appropriate size to the problem. Repeated calls
   // with the same arguments are ignored. Repeated calls with the same double

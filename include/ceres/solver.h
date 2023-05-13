@@ -48,6 +48,10 @@
 
 namespace ceres {
 
+namespace internal {
+class RegisteredCUDAEvaluators;
+}  // namespace internal
+
 // Interface for non-linear least squares solvers.
 class CERES_EXPORT Solver {
  public:
@@ -823,6 +827,19 @@ class CERES_EXPORT Solver {
     //
     // The solver does NOT take ownership of these pointers.
     std::vector<IterationCallback*> callbacks;
+
+    // If use_cuda_for_evaluator is true, the cost
+    // functions in the problem will be evaluated
+    // in parallel on the GPU. Currently, this
+    // option can be used if the problem only contains
+    // cost functions of type AutoDiffCostFunction.
+    bool use_cuda_for_evaluator = false;
+
+    // If use_cuda_for_evaluator is true, this variable will point
+    // to an object containing the CUDA evaluators that have been
+    // initialized by CUDA-based cost functions provided by the user.
+    internal::RegisteredCUDAEvaluators* registered_cuda_evaluators = nullptr;
+
   };
 
   struct CERES_EXPORT Summary {

@@ -28,7 +28,7 @@
 //
 // Author: sameeragarwal@google.com (Sameer Agarwal)
 
-#include "ceres/corrector.h"
+#include "ceres/internal/corrector.h"
 
 #include <algorithm>
 #include <cmath>

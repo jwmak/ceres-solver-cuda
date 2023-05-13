@@ -62,6 +62,7 @@ class CERES_NO_EXPORT Program {
  public:
   // The ordered parameter and residual blocks for the program.
   const std::vector<ParameterBlock*>& parameter_blocks() const;
+  const std::vector<ParameterBlock*>& constant_parameter_blocks() const;
   const std::vector<ResidualBlock*>& residual_blocks() const;
   std::vector<ParameterBlock*>* mutable_parameter_blocks();
   std::vector<ResidualBlock*>* mutable_residual_blocks();
@@ -75,6 +76,7 @@ class CERES_NO_EXPORT Program {
   // blocks cannot be trusted.
   bool StateVectorToParameterBlocks(const double* state);
   void ParameterBlocksToStateVector(double* state) const;
+  void ConstantParameterBlocksToStateVector(double* state) const;
 
   // Copy internal state to the user's parameters.
   void CopyParameterBlockStateToUserState();
@@ -158,6 +160,7 @@ class CERES_NO_EXPORT Program {
   int NumParameterBlocks() const;
   int NumParameters() const;
   int NumEffectiveParameters() const;
+  int NumConstantParameters() const;
   int NumResidualBlocks() const;
   int NumResiduals() const;
 
@@ -188,6 +191,10 @@ class CERES_NO_EXPORT Program {
 
   // The Program does not own the ParameterBlock or ResidualBlock objects.
   std::vector<ParameterBlock*> parameter_blocks_;
+
+  // List of removed (constant) parameter blocks.
+  std::vector<ParameterBlock*> constant_parameter_blocks_;
+
   std::vector<ResidualBlock*> residual_blocks_;
   EvaluationCallback* evaluation_callback_ = nullptr;
 

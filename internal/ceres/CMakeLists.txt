@@ -33,7 +33,7 @@
 # Avoid 'xxx.cc has no symbols' warnings from source files which are 'empty'
 # when their enclosing #ifdefs are disabled.
 find_package(Threads REQUIRED)
-list(APPEND CERES_LIBRARY_PRIVATE_DEPENDENCIES Threads::Threads)
+list(APPEND CERES_LIBRARY_PRIVATE_DEPENDENCIES Threads::Threads gfortran)
 # Make dependency visible to the parent CMakeLists.txt
 set(Threads_DEPENDENCY "find_dependency (Threads)" PARENT_SCOPE)
 
@@ -178,7 +178,6 @@ add_library(ceres_internal OBJECT
     context.cc
     context_impl.cc
     coordinate_descent_minimizer.cc
-    corrector.cc
     cost_function.cc
     covariance.cc
     covariance_impl.cc
@@ -233,6 +232,7 @@ add_library(ceres_internal OBJECT
     preprocessor.cc
     problem_impl.cc
     program.cc
+    registered_cuda_evaluators.cc
     reorder_program.cc
     residual_block.cc
     residual_block_utils.cc
@@ -423,7 +423,40 @@ if (BUILD_TESTING AND GFLAGS)
               test_util.cc)
 
   target_include_directories(test_util PUBLIC ${Ceres_SOURCE_DIR}/internal)
+  if (USE_CUDA)
+    target_include_directories(test_util PUBLIC ${CUDA_TOOLKIT_INCLUDE})
+  endif(USE_CUDA)
   target_link_libraries (test_util PUBLIC ceres_static gflags gtest)
+
+  macro (CERES_CUDA_TEST NAME)
+    set_source_files_properties(${NAME}_test.cu.cc PROPERTIES LANGUAGE CUDA)
+    add_executable(${NAME}_test ${NAME}_test.cu.cc)
+    # Pull in local headers from the generated test directories when ceres_test()
+    # is invoked there, as well as the private headers in this directory which
+    # may be referenced without the 'ceres' path prefix and all private
+    # dependencies that may be directly referenced.
+    target_include_directories(${NAME}_test
+      PRIVATE ${Ceres_SOURCE_DIR}/internal/ceres
+              ${CERES_LIBRARY_PRIVATE_DEPENDENCIES_INCLUDE_DIRS})
+    target_include_directories(${NAME}_test PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+    # Some tests include direct references/includes of private dependency
+    # headers which are not propagated via the ceres targets, so link them
+    # explicitly.
+    target_link_libraries(${NAME}_test PRIVATE gtest test_util ceres_static
+      ${CERES_LIBRARY_PRIVATE_DEPENDENCIES})
+
+    # covariance_test uses SuiteSparseQR.hpp. However, since SuiteSparse import
+    # targets are private (link only) dependencies not propagated to consumers,
+    # we need to link against the target explicitly here.
+    if (TARGET SuiteSparse::SPQR)
+      target_link_libraries (${NAME}_test PRIVATE SuiteSparse::SPQR)
+    endif (TARGET SuiteSparse::SPQR)
+
+    add_test(NAME ${NAME}_test
+             COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${NAME}_test
+             --test_srcdir
+             ${Ceres_SOURCE_DIR}/data)
+  endmacro (CERES_CUDA_TEST)
 
   macro (CERES_TEST NAME)
     add_executable(${NAME}_test ${NAME}_test.cc)
@@ -555,9 +588,12 @@ if (BUILD_TESTING AND GFLAGS)
   ceres_test(trust_region_preprocessor)
   ceres_test(visibility)
   ceres_test(visibility_based_preconditioner)
-
   add_subdirectory(generated_bundle_adjustment_tests)
-
+  if (USE_CUDA)
+    ceres_cuda_test(autodiff_cost_function_cuda)
+    ceres_cuda_test(evaluator_cuda)
+    ceres_cuda_test(jet_cuda)
+  endif(USE_CUDA)
 endif (BUILD_TESTING AND GFLAGS)
 
 macro(add_dependencies_to_benchmark BENCHMARK_TARGET)
@@ -605,3 +641,4 @@ if (BUILD_BENCHMARKS)
 
   add_subdirectory(autodiff_benchmarks)
 endif (BUILD_BENCHMARKS)
+

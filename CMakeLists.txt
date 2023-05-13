@@ -193,7 +193,7 @@ unset(CERES_COMPILE_OPTIONS)
 
 # Eigen.
 # Eigen delivers Eigen3Config.cmake since v3.3.3
-find_package(Eigen3 3.3 REQUIRED)
+find_package(Eigen3 3.4 REQUIRED)
 if (Eigen3_FOUND)
   message("-- Found Eigen version ${Eigen3_VERSION}: ${Eigen3_DIR}")
   if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*)" AND
@@ -216,13 +216,15 @@ if (Eigen3_FOUND)
 endif (Eigen3_FOUND)
 
 if (USE_CUDA)
+  set(CMAKE_CUDA_SEPARABLE_COMPILATION ON) 
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr")
   if (CMAKE_VERSION VERSION_LESS 3.17)
     # On older versions of CMake (20.04 default is 3.16) FindCUDAToolkit was
     # not available, but FindCUDA was deprecated. To avoid special-case handling
     # elsewhere, emulate the effects of FindCUDAToolkit locally in terms of the
     # expected CMake imported targets and defined variables. This can be removed
     # from as soon as the min CMake version is >= 3.17.
-    find_package(CUDA QUIET)
+    find_package(CUDA 11.3 REQUIRED QUIET)
     if (CUDA_FOUND)
       message("-- Found CUDA version ${CUDA_VERSION} installed in: "
         "${CUDA_TOOLKIT_ROOT_DIR} via legacy (< 3.17) CMake module. "
@@ -251,7 +253,7 @@ if (USE_CUDA)
       update_cache_variable(USE_CUDA OFF)
     endif (CUDA_FOUND)
   else (CMAKE_VERSION VERSION_LESS 3.17)
-    find_package(CUDAToolkit QUIET)
+    find_package(CUDAToolkit 11.3 REQUIRED QUIET)
     if (CUDAToolkit_FOUND)
       message("-- Found CUDA version ${CUDAToolkit_VERSION} installed in: "
         "${CUDAToolkit_TARGET_DIR}")

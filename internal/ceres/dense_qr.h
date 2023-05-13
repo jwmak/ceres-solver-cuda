@@ -49,7 +49,7 @@
 
 #ifndef CERES_NO_CUDA
 #include "ceres/context_impl.h"
-#include "ceres/cuda_buffer.h"
+#include "ceres/internal/cuda_buffer.h"
 #include "cublas_v2.h"
 #include "cuda_runtime.h"
 #include "cusolverDn.h"

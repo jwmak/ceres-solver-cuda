@@ -42,6 +42,7 @@
 #include "ceres/cost_function.h"
 #include "ceres/internal/disable_warnings.h"
 #include "ceres/internal/export.h"
+#include "ceres/internal/residual_block_cuda.h"
 #include "ceres/stringprintf.h"
 #include "ceres/types.h"
 
@@ -126,6 +127,14 @@ class CERES_NO_EXPORT ResidualBlock {
   // The minimum amount of scratch space needed to pass to Evaluate().
   int NumScratchDoublesForEvaluate() const;
 
+  ResidualBlockCUDA* GetResidualBlockCUDA() const {
+    return residual_block_cuda_.get();
+  }
+
+  void SetResidualBlockCUDA(ResidualBlockCUDA* residual_block_cuda) {
+    residual_block_cuda_.reset(residual_block_cuda);
+  }
+
   // This residual block's index in an array.
   int index() const { return index_; }
   void set_index(int index) { index_ = index; }
@@ -138,6 +147,8 @@ class CERES_NO_EXPORT ResidualBlock {
   const CostFunction* cost_function_;
   const LossFunction* loss_function_;
   std::unique_ptr<ParameterBlock*[]> parameter_blocks_;
+
+  std::unique_ptr<ResidualBlockCUDA> residual_block_cuda_;
 
   // The index of the residual, typically in a Program. This is only to permit
   // switching from a ResidualBlock* to an index in the Program's array, needed

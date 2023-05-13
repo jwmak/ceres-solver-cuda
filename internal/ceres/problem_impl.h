@@ -54,6 +54,7 @@
 #include "ceres/problem.h"
 #include "ceres/types.h"
 
+
 namespace ceres {
 
 class CostFunction;
@@ -65,6 +66,7 @@ namespace internal {
 
 class Program;
 class ResidualBlock;
+class ResidualBlockCUDA;
 
 class CERES_NO_EXPORT ProblemImpl {
  public:
@@ -85,6 +87,11 @@ class CERES_NO_EXPORT ProblemImpl {
                                    LossFunction* loss_function,
                                    double* const* const parameter_blocks,
                                    int num_parameter_blocks);
+
+  ResidualBlockId AddResidualBlockCUDA(ResidualBlockCUDA* residual_block_cuda,
+                                       CostFunction* cost_function,
+                                       double* const* const parameter_blocks,
+                                       int num_parameter_blocks);
 
   template <typename... Ts>
   ResidualBlockId AddResidualBlock(CostFunction* cost_function,

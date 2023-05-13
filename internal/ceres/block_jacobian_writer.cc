@@ -54,12 +54,18 @@ namespace {
 // the first num_eliminate_blocks parameter blocks as indicated by the parameter
 // block ordering. The remaining parameter blocks are the F blocks.
 //
+// To support evaluating cost functions in CUDA, we also need to set up the
+// data structures to hold the locations of each jacobian block *per residual*.
+//
 // TODO(keir): Consider if we should use a boolean for each parameter block
 // instead of num_eliminate_blocks.
 void BuildJacobianLayout(const Program& program,
                          int num_eliminate_blocks,
                          std::vector<int*>* jacobian_layout,
-                         std::vector<int>* jacobian_layout_storage) {
+                         std::vector<int>* jacobian_layout_storage,
+                         std::vector<int>* jacobian_per_residual_layout,
+                         std::vector<int>* jacobian_per_residual_offsets,
+                         int* num_jacobian_values) {
   const std::vector<ResidualBlock*>& residual_blocks =
       program.residual_blocks();
 
@@ -68,6 +74,8 @@ void BuildJacobianLayout(const Program& program,
   // matrix. Also compute the number of jacobian blocks.
   int f_block_pos = 0;
   int num_jacobian_blocks = 0;
+  // The sum of the numbers of residuals per non-constant parameter block.
+  int total_residuals = 0;
   for (auto* residual_block : residual_blocks) {
     const int num_residuals = residual_block->NumResiduals();
     const int num_parameter_blocks = residual_block->NumParameterBlocks();
@@ -81,6 +89,7 @@ void BuildJacobianLayout(const Program& program,
         if (parameter_block->index() < num_eliminate_blocks) {
           f_block_pos += num_residuals * parameter_block->TangentSize();
         }
+        total_residuals += num_residuals;
       }
     }
   }
@@ -89,39 +98,66 @@ void BuildJacobianLayout(const Program& program,
   // blocks are laid out starting at f_block_pos. Iterate over the residual
   // blocks again, and this time fill the jacobian_layout array with the
   // position information.
-
   jacobian_layout->resize(program.NumResidualBlocks());
   jacobian_layout_storage->resize(num_jacobian_blocks);
+  jacobian_per_residual_layout->resize(program.NumResidualBlocks());
+  jacobian_per_residual_offsets->resize(total_residuals);
 
   int e_block_pos = 0;
   int* jacobian_pos = jacobian_layout_storage->data();
+  int jacobian_per_residual_index = 0;
+
   for (int i = 0; i < residual_blocks.size(); ++i) {
     const ResidualBlock* residual_block = residual_blocks[i];
     const int num_residuals = residual_block->NumResiduals();
     const int num_parameter_blocks = residual_block->NumParameterBlocks();
 
     (*jacobian_layout)[i] = jacobian_pos;
+    (*jacobian_per_residual_layout)[i] = jacobian_per_residual_index;
     for (int j = 0; j < num_parameter_blocks; ++j) {
       ParameterBlock* parameter_block = residual_block->parameter_blocks()[j];
       const int parameter_block_index = parameter_block->index();
       if (parameter_block->IsConstant()) {
         continue;
       }
-      const int jacobian_block_size =
-          num_residuals * parameter_block->TangentSize();
-      if (parameter_block_index < num_eliminate_blocks) {
-        *jacobian_pos = e_block_pos;
-        e_block_pos += jacobian_block_size;
-      } else {
-        *jacobian_pos = f_block_pos;
-        f_block_pos += jacobian_block_size;
+
+      // *jacobian_pos stores the location of each full-sized jacobian block per residual block,
+      // while (*jacobian_per_residual_offsets)[jacobian_per_residual_index] stores the location
+      // of each partial jacobian block *per residual*.
+      for (int k = 0; k < num_residuals; ++k) {
+        if (parameter_block_index < num_eliminate_blocks) {
+          if (k == 0)
+            *jacobian_pos = e_block_pos;
+
+          (*jacobian_per_residual_offsets)[jacobian_per_residual_index] = e_block_pos;
+          e_block_pos += parameter_block->TangentSize();
+        } else {
+          if (k == 0)
+            *jacobian_pos = f_block_pos;
+
+          (*jacobian_per_residual_offsets)[jacobian_per_residual_index] = f_block_pos;
+          f_block_pos += parameter_block->TangentSize();
+        }
+
+        if (k == 0)
+          jacobian_pos++;
+        jacobian_per_residual_index++;
       }
-      jacobian_pos++;
     }
   }
+
+  *num_jacobian_values = f_block_pos;
 }
 
 }  // namespace
+
+void BlockJacobianWriter::CreateJacobianPerResidualLayout(std::vector<int>* jacobian_per_residual_layout,
+                                                          std::vector<int>* jacobian_per_residual_offsets,
+                                                          int* num_jacobian_values) {
+  *jacobian_per_residual_layout = jacobian_per_residual_layout_;
+  *jacobian_per_residual_offsets = jacobian_per_residual_offsets_;
+  *num_jacobian_values = num_jacobian_values_;
+}
 
 BlockJacobianWriter::BlockJacobianWriter(const Evaluator::Options& options,
                                          Program* program)
@@ -132,7 +168,10 @@ BlockJacobianWriter::BlockJacobianWriter(const Evaluator::Options& options,
   BuildJacobianLayout(*program,
                       options.num_eliminate_blocks,
                       &jacobian_layout_,
-                      &jacobian_layout_storage_);
+                      &jacobian_layout_storage_,
+                      &jacobian_per_residual_layout_,
+                      &jacobian_per_residual_offsets_,
+                      &num_jacobian_values_);
 }
 
 // Create evaluate prepareres that point directly into the final jacobian. This
@@ -183,7 +222,7 @@ std::unique_ptr<SparseMatrix> BlockJacobianWriter::CreateJacobian() const {
     const int num_parameter_blocks = residual_block->NumParameterBlocks();
     int num_active_parameter_blocks = 0;
     for (int j = 0; j < num_parameter_blocks; ++j) {
-      if (residual_block->parameter_blocks()[j]->index() != -1) {
+      if (!residual_block->parameter_blocks()[j]->IsConstant()) {
         num_active_parameter_blocks++;
       }
     }

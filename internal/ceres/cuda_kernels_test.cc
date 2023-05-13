@@ -37,8 +37,8 @@
 #include <vector>
 
 #include "ceres/context_impl.h"
-#include "ceres/cuda_buffer.h"
 #include "ceres/internal/config.h"
+#include "ceres/internal/cuda_buffer.h"
 #include "ceres/internal/eigen.h"
 #include "glog/logging.h"
 #include "gtest/gtest.h"

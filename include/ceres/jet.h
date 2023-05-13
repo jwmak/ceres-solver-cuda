@@ -166,10 +166,21 @@
 #include <string>
 #include <type_traits>
 
+#include "ceres/internal/config.h"
+
 #include "Eigen/Core"
+#include "ceres/internal/cuda_defs.h"
+#include "ceres/internal/cudamath/cuda_math.h"
 #include "ceres/internal/jet_traits.h"
 #include "ceres/internal/port.h"
 #include "ceres/jet_fwd.h"
+
+#if !defined(CERES_NO_CUDA)
+#if defined(DEVICE_CODE)
+// For complex numbers like those used in norm().
+#include <cuda/std/complex>
+#endif  // defined(DEVICE_CODE)
+#endif  // !defined(CERES_NO_CUDA)
 
 // Here we provide partial specializations of std::common_type for the Jet class
 // to allow determining a Jet type with a common underlying arithmetic type.
@@ -217,16 +228,16 @@ struct Jet {
   // (where T is a Jet<T, N>). This usually only happens in opt mode. Note that
   // the C++ standard mandates that e.g. default constructed doubles are
   // initialized to 0.0; see sections 8.5 of the C++03 standard.
-  Jet() : a() { v.setConstant(Scalar()); }
+  HOST_DEVICE Jet() : a() { v.setConstant(Scalar()); }
 
   // Constructor from scalar: a + 0.
-  explicit Jet(const T& value) {
+  HOST_DEVICE explicit Jet(const T& value) {
     a = value;
     v.setConstant(Scalar());
   }
 
   // Constructor from scalar plus variable: a + t_i.
-  Jet(const T& value, int k) {
+  HOST_DEVICE Jet(const T& value, int k) {
     a = value;
     v.setConstant(Scalar());
     v[k] = T(1.0);
@@ -237,47 +248,47 @@ struct Jet {
   // to be passed in without being fully evaluated until
   // they are assigned to v
   template <typename Derived>
-  EIGEN_STRONG_INLINE Jet(const T& a, const Eigen::DenseBase<Derived>& v)
+  HOST_DEVICE EIGEN_STRONG_INLINE Jet(const T& a, const Eigen::DenseBase<Derived>& v)
       : a(a), v(v) {}
 
   // Compound operators
-  Jet<T, N>& operator+=(const Jet<T, N>& y) {
+  HOST_DEVICE Jet<T, N>& operator+=(const Jet<T, N>& y) {
     *this = *this + y;
     return *this;
   }
 
-  Jet<T, N>& operator-=(const Jet<T, N>& y) {
+  HOST_DEVICE Jet<T, N>& operator-=(const Jet<T, N>& y) {
     *this = *this - y;
     return *this;
   }
 
-  Jet<T, N>& operator*=(const Jet<T, N>& y) {
+  HOST_DEVICE Jet<T, N>& operator*=(const Jet<T, N>& y) {
     *this = *this * y;
     return *this;
   }
 
-  Jet<T, N>& operator/=(const Jet<T, N>& y) {
+  HOST_DEVICE Jet<T, N>& operator/=(const Jet<T, N>& y) {
     *this = *this / y;
     return *this;
   }
 
   // Compound with scalar operators.
-  Jet<T, N>& operator+=(const T& s) {
+  HOST_DEVICE Jet<T, N>& operator+=(const T& s) {
     *this = *this + s;
     return *this;
   }
 
-  Jet<T, N>& operator-=(const T& s) {
+  HOST_DEVICE Jet<T, N>& operator-=(const T& s) {
     *this = *this - s;
     return *this;
   }
 
-  Jet<T, N>& operator*=(const T& s) {
+  HOST_DEVICE Jet<T, N>& operator*=(const T& s) {
     *this = *this * s;
     return *this;
   }
 
-  Jet<T, N>& operator/=(const T& s) {
+  HOST_DEVICE Jet<T, N>& operator/=(const T& s) {
     *this = *this / s;
     return *this;
   }
@@ -295,7 +306,7 @@ struct Jet {
 
 // Unary +
 template <typename T, int N>
-inline Jet<T, N> const& operator+(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> const& operator+(const Jet<T, N>& f) {
   return f;
 }
 
@@ -304,67 +315,67 @@ inline Jet<T, N> const& operator+(const Jet<T, N>& f) {
 
 // Unary -
 template <typename T, int N>
-inline Jet<T, N> operator-(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> operator-(const Jet<T, N>& f) {
   return Jet<T, N>(-f.a, -f.v);
 }
 
 // Binary +
 template <typename T, int N>
-inline Jet<T, N> operator+(const Jet<T, N>& f, const Jet<T, N>& g) {
+HOST_DEVICE inline Jet<T, N> operator+(const Jet<T, N>& f, const Jet<T, N>& g) {
   return Jet<T, N>(f.a + g.a, f.v + g.v);
 }
 
 // Binary + with a scalar: x + s
 template <typename T, int N>
-inline Jet<T, N> operator+(const Jet<T, N>& f, T s) {
+HOST_DEVICE inline Jet<T, N> operator+(const Jet<T, N>& f, T s) {
   return Jet<T, N>(f.a + s, f.v);
 }
 
 // Binary + with a scalar: s + x
 template <typename T, int N>
-inline Jet<T, N> operator+(T s, const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> operator+(T s, const Jet<T, N>& f) {
   return Jet<T, N>(f.a + s, f.v);
 }
 
 // Binary -
 template <typename T, int N>
-inline Jet<T, N> operator-(const Jet<T, N>& f, const Jet<T, N>& g) {
+HOST_DEVICE inline Jet<T, N> operator-(const Jet<T, N>& f, const Jet<T, N>& g) {
   return Jet<T, N>(f.a - g.a, f.v - g.v);
 }
 
 // Binary - with a scalar: x - s
 template <typename T, int N>
-inline Jet<T, N> operator-(const Jet<T, N>& f, T s) {
+HOST_DEVICE inline Jet<T, N> operator-(const Jet<T, N>& f, T s) {
   return Jet<T, N>(f.a - s, f.v);
 }
 
 // Binary - with a scalar: s - x
 template <typename T, int N>
-inline Jet<T, N> operator-(T s, const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> operator-(T s, const Jet<T, N>& f) {
   return Jet<T, N>(s - f.a, -f.v);
 }
 
 // Binary *
 template <typename T, int N>
-inline Jet<T, N> operator*(const Jet<T, N>& f, const Jet<T, N>& g) {
+HOST_DEVICE inline Jet<T, N> operator*(const Jet<T, N>& f, const Jet<T, N>& g) {
   return Jet<T, N>(f.a * g.a, f.a * g.v + f.v * g.a);
 }
 
 // Binary * with a scalar: x * s
 template <typename T, int N>
-inline Jet<T, N> operator*(const Jet<T, N>& f, T s) {
+HOST_DEVICE inline Jet<T, N> operator*(const Jet<T, N>& f, T s) {
   return Jet<T, N>(f.a * s, f.v * s);
 }
 
 // Binary * with a scalar: s * x
 template <typename T, int N>
-inline Jet<T, N> operator*(T s, const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> operator*(T s, const Jet<T, N>& f) {
   return Jet<T, N>(f.a * s, f.v * s);
 }
 
 // Binary /
 template <typename T, int N>
-inline Jet<T, N> operator/(const Jet<T, N>& f, const Jet<T, N>& g) {
+HOST_DEVICE inline Jet<T, N> operator/(const Jet<T, N>& f, const Jet<T, N>& g) {
   // This uses:
   //
   //   a + u   (a + u)(b - v)   (a + u)(b - v)
@@ -379,14 +390,14 @@ inline Jet<T, N> operator/(const Jet<T, N>& f, const Jet<T, N>& g) {
 
 // Binary / with a scalar: s / x
 template <typename T, int N>
-inline Jet<T, N> operator/(T s, const Jet<T, N>& g) {
+HOST_DEVICE inline Jet<T, N> operator/(T s, const Jet<T, N>& g) {
   const T minus_s_g_a_inverse2 = -s / (g.a * g.a);
   return Jet<T, N>(s / g.a, g.v * minus_s_g_a_inverse2);
 }
 
 // Binary / with a scalar: x / s
 template <typename T, int N>
-inline Jet<T, N> operator/(const Jet<T, N>& f, T s) {
+HOST_DEVICE inline Jet<T, N> operator/(const Jet<T, N>& f, T s) {
   const T s_inverse = T(1.0) / s;
   return Jet<T, N>(f.a * s_inverse, f.v * s_inverse);
 }
@@ -402,7 +413,7 @@ inline Jet<T, N> operator/(const Jet<T, N>& f, T s) {
   template <typename Lhs,                                                   \
             typename Rhs,                                                   \
             std::enable_if_t<PromotableJetOperands_v<Lhs, Rhs>>* = nullptr> \
-  constexpr bool operator op(const Lhs& f, const Rhs& g) noexcept(          \
+    constexpr bool operator op(const Lhs& f, const Rhs& g) noexcept(        \
       noexcept(internal::AsScalar(f) op internal::AsScalar(g))) {           \
     using internal::AsScalar;                                               \
     return AsScalar(f) op AsScalar(g);                                      \
@@ -500,28 +511,28 @@ using std::islessgreater;
 using std::isunordered;
 #endif
 
-#ifdef CERES_HAS_CPP20
+#if defined(CERES_HAS_CPP20) && !defined(DEVICE_CODE)
 using std::lerp;
 using std::midpoint;
-#endif  // defined(CERES_HAS_CPP20)
+#endif  // defined(CERES_HAS_CPP20) && !defined(DEVICE_CODE)
 
 // Legacy names from pre-C++11 days.
 // clang-format off
 CERES_DEPRECATED_WITH_MSG("ceres::IsFinite will be removed in a future Ceres Solver release. Please use ceres::isfinite.")
-inline bool IsFinite(double x)   { return std::isfinite(x); }
+HOST_DEVICE inline bool IsFinite(double x)   { return std::isfinite(x); }
 CERES_DEPRECATED_WITH_MSG("ceres::IsInfinite will be removed in a future Ceres Solver release. Please use ceres::isinf.")
-inline bool IsInfinite(double x) { return std::isinf(x);    }
+HOST_DEVICE inline bool IsInfinite(double x) { return std::isinf(x);    }
 CERES_DEPRECATED_WITH_MSG("ceres::IsNaN will be removed in a future Ceres Solver release. Please use ceres::isnan.")
-inline bool IsNaN(double x)      { return std::isnan(x);    }
+HOST_DEVICE inline bool IsNaN(double x)      { return std::isnan(x);    }
 CERES_DEPRECATED_WITH_MSG("ceres::IsNormal will be removed in a future Ceres Solver release. Please use ceres::isnormal.")
-inline bool IsNormal(double x)   { return std::isnormal(x); }
+HOST_DEVICE inline bool IsNormal(double x)   { return std::isnormal(x); }
 // clang-format on
 
 // In general, f(a + h) ~= f(a) + f'(a) h, via the chain rule.
 
 // abs(x + h) ~= abs(x) + sgn(x)h
 template <typename T, int N>
-inline Jet<T, N> abs(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> abs(const Jet<T, N>& f) {
   return Jet<T, N>(abs(f.a), copysign(T(1), f.a) * f.v);
 }
 
@@ -547,7 +558,10 @@ inline Jet<T, N> abs(const Jet<T, N>& f) {
 //
 // where δ(b) is the Dirac delta function.
 template <typename T, int N>
-inline Jet<T, N> copysign(const Jet<T, N>& f, const Jet<T, N> g) {
+HOST_DEVICE inline Jet<T, N> copysign(const Jet<T, N>& f, const Jet<T, N> g) {
+#if defined(DEVICE_CODE)
+  using ceres::internal::cudamath::fpclassify;
+#endif  // defined(DEVICE_CODE)
   // The Dirac delta function  δ(b) is undefined at b=0 (here it's
   // infinite) and 0 everywhere else.
   T d = fpclassify(g) == FP_ZERO ? std::numeric_limits<T>::infinity() : T(0);
@@ -563,14 +577,14 @@ inline Jet<T, N> copysign(const Jet<T, N>& f, const Jet<T, N> g) {
 
 // log(a + h) ~= log(a) + h / a
 template <typename T, int N>
-inline Jet<T, N> log(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> log(const Jet<T, N>& f) {
   const T a_inverse = T(1.0) / f.a;
   return Jet<T, N>(log(f.a), f.v * a_inverse);
 }
 
 // log10(a + h) ~= log10(a) + h / (a log(10))
 template <typename T, int N>
-inline Jet<T, N> log10(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> log10(const Jet<T, N>& f) {
   // Most compilers will expand log(10) to a constant.
   const T a_inverse = T(1.0) / (f.a * log(T(10.0)));
   return Jet<T, N>(log10(f.a), f.v * a_inverse);
@@ -578,21 +592,21 @@ inline Jet<T, N> log10(const Jet<T, N>& f) {
 
 // log1p(a + h) ~= log1p(a) + h / (1 + a)
 template <typename T, int N>
-inline Jet<T, N> log1p(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> log1p(const Jet<T, N>& f) {
   const T a_inverse = T(1.0) / (T(1.0) + f.a);
   return Jet<T, N>(log1p(f.a), f.v * a_inverse);
 }
 
 // exp(a + h) ~= exp(a) + exp(a) h
 template <typename T, int N>
-inline Jet<T, N> exp(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> exp(const Jet<T, N>& f) {
   const T tmp = exp(f.a);
   return Jet<T, N>(tmp, tmp * f.v);
 }
 
 // expm1(a + h) ~= expm1(a) + exp(a) h
 template <typename T, int N>
-inline Jet<T, N> expm1(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> expm1(const Jet<T, N>& f) {
   const T tmp = expm1(f.a);
   const T expa = tmp + T(1.0);  // exp(a) = expm1(a) + 1
   return Jet<T, N>(tmp, expa * f.v);
@@ -600,7 +614,7 @@ inline Jet<T, N> expm1(const Jet<T, N>& f) {
 
 // sqrt(a + h) ~= sqrt(a) + h / (2 sqrt(a))
 template <typename T, int N>
-inline Jet<T, N> sqrt(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> sqrt(const Jet<T, N>& f) {
   const T tmp = sqrt(f.a);
   const T two_a_inverse = T(1.0) / (T(2.0) * tmp);
   return Jet<T, N>(tmp, f.v * two_a_inverse);
@@ -608,33 +622,33 @@ inline Jet<T, N> sqrt(const Jet<T, N>& f) {
 
 // cos(a + h) ~= cos(a) - sin(a) h
 template <typename T, int N>
-inline Jet<T, N> cos(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> cos(const Jet<T, N>& f) {
   return Jet<T, N>(cos(f.a), -sin(f.a) * f.v);
 }
 
 // acos(a + h) ~= acos(a) - 1 / sqrt(1 - a^2) h
 template <typename T, int N>
-inline Jet<T, N> acos(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> acos(const Jet<T, N>& f) {
   const T tmp = -T(1.0) / sqrt(T(1.0) - f.a * f.a);
   return Jet<T, N>(acos(f.a), tmp * f.v);
 }
 
 // sin(a + h) ~= sin(a) + cos(a) h
 template <typename T, int N>
-inline Jet<T, N> sin(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> sin(const Jet<T, N>& f) {
   return Jet<T, N>(sin(f.a), cos(f.a) * f.v);
 }
 
 // asin(a + h) ~= asin(a) + 1 / sqrt(1 - a^2) h
 template <typename T, int N>
-inline Jet<T, N> asin(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> asin(const Jet<T, N>& f) {
   const T tmp = T(1.0) / sqrt(T(1.0) - f.a * f.a);
   return Jet<T, N>(asin(f.a), tmp * f.v);
 }
 
 // tan(a + h) ~= tan(a) + (1 + tan(a)^2) h
 template <typename T, int N>
-inline Jet<T, N> tan(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> tan(const Jet<T, N>& f) {
   const T tan_a = tan(f.a);
   const T tmp = T(1.0) + tan_a * tan_a;
   return Jet<T, N>(tan_a, tmp * f.v);
@@ -642,26 +656,26 @@ inline Jet<T, N> tan(const Jet<T, N>& f) {
 
 // atan(a + h) ~= atan(a) + 1 / (1 + a^2) h
 template <typename T, int N>
-inline Jet<T, N> atan(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> atan(const Jet<T, N>& f) {
   const T tmp = T(1.0) / (T(1.0) + f.a * f.a);
   return Jet<T, N>(atan(f.a), tmp * f.v);
 }
 
 // sinh(a + h) ~= sinh(a) + cosh(a) h
 template <typename T, int N>
-inline Jet<T, N> sinh(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> sinh(const Jet<T, N>& f) {
   return Jet<T, N>(sinh(f.a), cosh(f.a) * f.v);
 }
 
 // cosh(a + h) ~= cosh(a) + sinh(a) h
 template <typename T, int N>
-inline Jet<T, N> cosh(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> cosh(const Jet<T, N>& f) {
   return Jet<T, N>(cosh(f.a), sinh(f.a) * f.v);
 }
 
 // tanh(a + h) ~= tanh(a) + (1 - tanh(a)^2) h
 template <typename T, int N>
-inline Jet<T, N> tanh(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> tanh(const Jet<T, N>& f) {
   const T tanh_a = tanh(f.a);
   const T tmp = T(1.0) - tanh_a * tanh_a;
   return Jet<T, N>(tanh_a, tmp * f.v);
@@ -672,7 +686,7 @@ inline Jet<T, N> tanh(const Jet<T, N>& f) {
 //
 // floor(a + h) ~= floor(a) + 0
 template <typename T, int N>
-inline Jet<T, N> floor(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> floor(const Jet<T, N>& f) {
   return Jet<T, N>(floor(f.a));
 }
 
@@ -681,7 +695,7 @@ inline Jet<T, N> floor(const Jet<T, N>& f) {
 //
 // ceil(a + h) ~= ceil(a) + 0
 template <typename T, int N>
-inline Jet<T, N> ceil(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> ceil(const Jet<T, N>& f) {
   return Jet<T, N>(ceil(f.a));
 }
 
@@ -689,14 +703,14 @@ inline Jet<T, N> ceil(const Jet<T, N>& f) {
 
 // cbrt(a + h) ~= cbrt(a) + h / (3 a ^ (2/3))
 template <typename T, int N>
-inline Jet<T, N> cbrt(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> cbrt(const Jet<T, N>& f) {
   const T derivative = T(1.0) / (T(3.0) * cbrt(f.a * f.a));
   return Jet<T, N>(cbrt(f.a), f.v * derivative);
 }
 
 // exp2(x + h) = 2^(x+h) ~= 2^x + h*2^x*log(2)
 template <typename T, int N>
-inline Jet<T, N> exp2(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> exp2(const Jet<T, N>& f) {
   const T tmp = exp2(f.a);
   const T derivative = tmp * log(T(2));
   return Jet<T, N>(tmp, f.v * derivative);
@@ -704,7 +718,7 @@ inline Jet<T, N> exp2(const Jet<T, N>& f) {
 
 // log2(x + h) ~= log2(x) + h / (x * log(2))
 template <typename T, int N>
-inline Jet<T, N> log2(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> log2(const Jet<T, N>& f) {
   const T derivative = T(1.0) / (f.a * log(T(2)));
   return Jet<T, N>(log2(f.a), f.v * derivative);
 }
@@ -714,7 +728,7 @@ inline Jet<T, N> log2(const Jet<T, N>& f) {
 // Note that the function is non-smooth at x=y=0,
 // so the derivative is undefined there.
 template <typename T, int N>
-inline Jet<T, N> hypot(const Jet<T, N>& x, const Jet<T, N>& y) {
+HOST_DEVICE inline Jet<T, N> hypot(const Jet<T, N>& x, const Jet<T, N>& y) {
   // d/da sqrt(a) = 0.5 / sqrt(a)
   // d/dx x^2 + y^2 = 2x
   // So by the chain rule:
@@ -724,14 +738,10 @@ inline Jet<T, N> hypot(const Jet<T, N>& x, const Jet<T, N>& y) {
   return Jet<T, N>(tmp, x.a / tmp * x.v + y.a / tmp * y.v);
 }
 
-// Like sqrt(x^2 + y^2 + z^2),
-// but acts to prevent underflow/overflow for small/large x/y/z.
-// Note that the function is non-smooth at x=y=z=0,
-// so the derivative is undefined there.
 template <typename T, int N>
-inline Jet<T, N> hypot(const Jet<T, N>& x,
-                       const Jet<T, N>& y,
-                       const Jet<T, N>& z) {
+HOST_DEVICE inline Jet<T, N> hypot(const Jet<T, N>& x,
+                                   const Jet<T, N>& y,
+                                   const Jet<T, N>& z) {
   // d/da sqrt(a) = 0.5 / sqrt(a)
   // d/dx x^2 + y^2 + z^2 = 2x
   // So by the chain rule:
@@ -740,15 +750,19 @@ inline Jet<T, N> hypot(const Jet<T, N>& x,
   //    = x / sqrt(x^2 + y^2 + z^2)
   // d/dy sqrt(x^2 + y^2 + z^2) = y / sqrt(x^2 + y^2 + z^2)
   // d/dz sqrt(x^2 + y^2 + z^2) = z / sqrt(x^2 + y^2 + z^2)
+#if defined(DEVICE_CODE)
+  using ceres::internal::cudamath::hypot;
+#endif  // defined(DEVICE_CODE)
   const T tmp = hypot(x.a, y.a, z.a);
+
   return Jet<T, N>(tmp, x.a / tmp * x.v + y.a / tmp * y.v + z.a / tmp * z.v);
 }
 
 // Like x * y + z but rounded only once.
 template <typename T, int N>
-inline Jet<T, N> fma(const Jet<T, N>& x,
-                     const Jet<T, N>& y,
-                     const Jet<T, N>& z) {
+HOST_DEVICE inline Jet<T, N> fma(const Jet<T, N>& x,
+                                 const Jet<T, N>& y,
+                                 const Jet<T, N>& z) {
   // d/dx fma(x, y, z) = y
   // d/dy fma(x, y, z) = x
   // d/dz fma(x, y, z) = 1
@@ -789,7 +803,7 @@ inline Jet<T, N> fma(const Jet<T, N>& x,
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline decltype(auto) fmax(const Lhs& x, const Rhs& y) {
+HOST_DEVICE inline decltype(auto) fmax(const Lhs& x, const Rhs& y) {
   using J = std::common_type_t<Lhs, Rhs>;
   // As x == y may set FP exceptions in the presence of NaNs when used with
   // non-default compiler options so we avoid its use here.
@@ -797,11 +811,11 @@ inline decltype(auto) fmax(const Lhs& x, const Rhs& y) {
     return isnan(x) || isless(x, y) ? J{y} : J{x};
   }
   // x == y (scalar parts) return the average of their Jet representations.
-#if defined(CERES_HAS_CPP20)
+#if defined(CERES_HAS_CPP20) && !defined(DEVICE_CODE)
   return midpoint(J{x}, J{y});
 #else
   return (J{x} + J{y}) * typename J::Scalar(0.5);
-#endif  // defined(CERES_HAS_CPP20)
+#endif  // defined(CERES_HAS_CPP20) && !defined(DEVICE_CODE)
 }
 
 // Returns the smaller of the two arguments, with Jet averaging on equality.
@@ -812,7 +826,7 @@ inline decltype(auto) fmax(const Lhs& x, const Rhs& y) {
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline decltype(auto) fmin(const Lhs& x, const Rhs& y) {
+HOST_DEVICE inline decltype(auto) fmin(const Lhs& x, const Rhs& y) {
   using J = std::common_type_t<Lhs, Rhs>;
   // As x == y may set FP exceptions in the presence of NaNs when used with
   // non-default compiler options so we avoid its use here.
@@ -820,11 +834,11 @@ inline decltype(auto) fmin(const Lhs& x, const Rhs& y) {
     return isnan(x) || isgreater(x, y) ? J{y} : J{x};
   }
   // x == y (scalar parts) return the average of their Jet representations.
-#if defined(CERES_HAS_CPP20)
+#if defined(CERES_HAS_CPP20) && !defined(DEVICE_CODE)
   return midpoint(J{x}, J{y});
 #else
   return (J{x} + J{y}) * typename J::Scalar(0.5);
-#endif  // defined(CERES_HAS_CPP20)
+#endif  // defined(CERES_HAS_CPP20) && !defined(DEVICE_CODE)
 }
 
 // Returns the positive difference (f - g) of two arguments and zero if f <= g.
@@ -835,7 +849,7 @@ inline decltype(auto) fmin(const Lhs& x, const Rhs& y) {
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline decltype(auto) fdim(const Lhs& f, const Rhs& g) {
+HOST_DEVICE inline decltype(auto) fdim(const Lhs& f, const Rhs& g) {
   using J = std::common_type_t<Lhs, Rhs>;
   if (isnan(f) || isnan(g)) {
     return std::numeric_limits<J>::quiet_NaN();
@@ -847,7 +861,7 @@ inline decltype(auto) fdim(const Lhs& f, const Rhs& g) {
 // however, the derivative is trivial to compute
 // erf(x + h) = erf(x) + h * 2*exp(-x^2)/sqrt(pi)
 template <typename T, int N>
-inline Jet<T, N> erf(const Jet<T, N>& x) {
+HOST_DEVICE inline Jet<T, N> erf(const Jet<T, N>& x) {
   // We evaluate the constant as follows:
   //   2 / sqrt(pi) = 1 / sqrt(atan(1.))
   // On POSIX systems it is defined as M_2_SQRTPI, but this is not
@@ -861,7 +875,7 @@ inline Jet<T, N> erf(const Jet<T, N>& x) {
 // erfc(x) = 1-erf(x)
 // erfc(x + h) = erfc(x) + h * (-2*exp(-x^2)/sqrt(pi))
 template <typename T, int N>
-inline Jet<T, N> erfc(const Jet<T, N>& x) {
+HOST_DEVICE inline Jet<T, N> erfc(const Jet<T, N>& x) {
   // See in erf() above for the evaluation of the constant in the derivative.
   return Jet<T, N>(erfc(x.a),
                    -x.v * exp(-x.a * x.a) * (T(1) / sqrt(atan(T(1)))));
@@ -873,22 +887,22 @@ inline Jet<T, N> erfc(const Jet<T, N>& x) {
 // _j[0,1,n]().  Where available on MSVC, use _j[0,1,n]() to avoid deprecated
 // function errors in client code (the specific warning is suppressed when
 // Ceres itself is built).
-inline double BesselJ0(double x) {
-#if defined(CERES_MSVC_USE_UNDERSCORE_PREFIXED_BESSEL_FUNCTIONS)
+HOST_DEVICE inline double BesselJ0(double x) {
+#if defined(CERES_MSVC_USE_UNDERSCORE_PREFIXED_BESSEL_FUNCTIONS) && !defined(DEVICE_CODE)
   return _j0(x);
 #else
   return j0(x);
 #endif
 }
-inline double BesselJ1(double x) {
-#if defined(CERES_MSVC_USE_UNDERSCORE_PREFIXED_BESSEL_FUNCTIONS)
+HOST_DEVICE inline double BesselJ1(double x) {
+#if defined(CERES_MSVC_USE_UNDERSCORE_PREFIXED_BESSEL_FUNCTIONS) && !defined(DEVICE_CODE)
   return _j1(x);
 #else
   return j1(x);
 #endif
 }
-inline double BesselJn(int n, double x) {
-#if defined(CERES_MSVC_USE_UNDERSCORE_PREFIXED_BESSEL_FUNCTIONS)
+HOST_DEVICE inline double BesselJn(int n, double x) {
+#if defined(CERES_MSVC_USE_UNDERSCORE_PREFIXED_BESSEL_FUNCTIONS) && !defined(DEVICE_CODE)
   return _jn(n, x);
 #else
   return jn(n, x);
@@ -904,14 +918,14 @@ inline double BesselJn(int n, double x) {
 // See formula http://dlmf.nist.gov/10.6#E3
 // j0(a + h) ~= j0(a) - j1(a) h
 template <typename T, int N>
-inline Jet<T, N> BesselJ0(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> BesselJ0(const Jet<T, N>& f) {
   return Jet<T, N>(BesselJ0(f.a), -BesselJ1(f.a) * f.v);
 }
 
 // See formula http://dlmf.nist.gov/10.6#E1
 // j1(a + h) ~= j1(a) + 0.5 ( j0(a) - j2(a) ) h
 template <typename T, int N>
-inline Jet<T, N> BesselJ1(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> BesselJ1(const Jet<T, N>& f) {
   return Jet<T, N>(BesselJ1(f.a),
                    T(0.5) * (BesselJ0(f.a) - BesselJn(2, f.a)) * f.v);
 }
@@ -919,7 +933,7 @@ inline Jet<T, N> BesselJ1(const Jet<T, N>& f) {
 // See formula http://dlmf.nist.gov/10.6#E1
 // j_n(a + h) ~= j_n(a) + 0.5 ( j_{n-1}(a) - j_{n+1}(a) ) h
 template <typename T, int N>
-inline Jet<T, N> BesselJn(int n, const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> BesselJn(int n, const Jet<T, N>& f) {
   return Jet<T, N>(
       BesselJn(n, f.a),
       T(0.5) * (BesselJn(n - 1, f.a) - BesselJn(n + 1, f.a)) * f.v);
@@ -944,28 +958,37 @@ inline Jet<T, N> BesselJn(int n, const Jet<T, N>& f) {
 
 // Determines whether the scalar part of the Jet is finite.
 template <typename T, int N>
-inline bool isfinite(const Jet<T, N>& f) {
+HOST_DEVICE inline bool isfinite(const Jet<T, N>& f) {
   return isfinite(f.a);
 }
 
 // Determines whether the scalar part of the Jet is infinite.
 template <typename T, int N>
-inline bool isinf(const Jet<T, N>& f) {
+HOST_DEVICE inline bool isinf(const Jet<T, N>& f) {
   return isinf(f.a);
 }
 
 // Determines whether the scalar part of the Jet is NaN.
 template <typename T, int N>
-inline bool isnan(const Jet<T, N>& f) {
+HOST_DEVICE inline bool isnan(const Jet<T, N>& f) {
   return isnan(f.a);
 }
 
 // Determines whether the scalar part of the Jet is neither zero, subnormal,
 // infinite, nor NaN.
 template <typename T, int N>
-inline bool isnormal(const Jet<T, N>& f) {
+HOST_DEVICE inline bool isnormal(const Jet<T, N>& f) {
+#if defined(DEVICE_CODE)
+  using ceres::internal::cudamath::fpclassify;
+  return fpclassify(f.a) == FP_NORMAL;
+#else
   return isnormal(f.a);
+#endif  // defined(DEVICE_CODE)
 }
+
+// For functions that should not set floating-point exceptions,
+// the implementation for device code can be trivial since
+// floating exceptions are not supported on CUDA-enabled GPUs.
 
 // Determines whether the scalar part of the Jet f is less than the scalar
 // part of g.
@@ -974,9 +997,14 @@ inline bool isnormal(const Jet<T, N>& f) {
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline bool isless(const Lhs& f, const Rhs& g) {
+HOST_DEVICE inline bool isless(const Lhs& f, const Rhs& g) {
   using internal::AsScalar;
+
+#if defined(DEVICE_CODE)
+  return AsScalar(f) < AsScalar(g);
+#else
   return isless(AsScalar(f), AsScalar(g));
+#endif  // defined(DEVICE_CODE)
 }
 
 // Determines whether the scalar part of the Jet f is greater than the scalar
@@ -986,9 +1014,14 @@ inline bool isless(const Lhs& f, const Rhs& g) {
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline bool isgreater(const Lhs& f, const Rhs& g) {
+HOST_DEVICE inline bool isgreater(const Lhs& f, const Rhs& g) {
   using internal::AsScalar;
+
+#if defined(DEVICE_CODE)
+  return AsScalar(f) > AsScalar(g);
+#else
   return isgreater(AsScalar(f), AsScalar(g));
+#endif  // defined(DEVICE_CODE)
 }
 
 // Determines whether the scalar part of the Jet f is less than or equal to the
@@ -998,9 +1031,14 @@ inline bool isgreater(const Lhs& f, const Rhs& g) {
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline bool islessequal(const Lhs& f, const Rhs& g) {
+HOST_DEVICE inline bool islessequal(const Lhs& f, const Rhs& g) {
   using internal::AsScalar;
+
+#if defined(DEVICE_CODE)
+  return AsScalar(f) <= AsScalar(g);
+#else
   return islessequal(AsScalar(f), AsScalar(g));
+#endif  // defined(DEVICE_CODE)
 }
 
 // Determines whether the scalar part of the Jet f is less than or greater than
@@ -1010,9 +1048,14 @@ inline bool islessequal(const Lhs& f, const Rhs& g) {
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline bool islessgreater(const Lhs& f, const Rhs& g) {
+HOST_DEVICE inline bool islessgreater(const Lhs& f, const Rhs& g) {
   using internal::AsScalar;
+
+#if defined(DEVICE_CODE)
+  return AsScalar(f) > AsScalar(g) || AsScalar(f) < AsScalar(g);
+#else
   return islessgreater(AsScalar(f), AsScalar(g));
+#endif  // defined(DEVICE_CODE)
 }
 
 // Determines whether the scalar part of the Jet f is greater than or equal to
@@ -1022,9 +1065,14 @@ inline bool islessgreater(const Lhs& f, const Rhs& g) {
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline bool isgreaterequal(const Lhs& f, const Rhs& g) {
+HOST_DEVICE inline bool isgreaterequal(const Lhs& f, const Rhs& g) {
   using internal::AsScalar;
+
+#if defined(DEVICE_CODE)
+  return AsScalar(f) >= AsScalar(g);
+#else
   return isgreaterequal(AsScalar(f), AsScalar(g));
+#endif  // defined(DEVICE_CODE)
 }
 
 // Determines if either of the scalar parts of the arguments are NaN and
@@ -1032,21 +1080,30 @@ inline bool isgreaterequal(const Lhs& f, const Rhs& g) {
 template <typename Lhs,
           typename Rhs,
           std::enable_if_t<CompatibleJetOperands_v<Lhs, Rhs>>* = nullptr>
-inline bool isunordered(const Lhs& f, const Rhs& g) {
+HOST_DEVICE inline bool isunordered(const Lhs& f, const Rhs& g) {
   using internal::AsScalar;
+
+#if defined(DEVICE_CODE)
+  return isnan(AsScalar(f)) || isnan(AsScalar(g));
+#else
   return isunordered(AsScalar(f), AsScalar(g));
+#endif  // defined(DEVICE_CODE)
 }
 
 // Categorize scalar part as zero, subnormal, normal, infinite, NaN, or
 // implementation-defined.
 template <typename T, int N>
-inline int fpclassify(const Jet<T, N>& f) {
+HOST_DEVICE inline int fpclassify(const Jet<T, N>& f) {
+#if defined(DEVICE_CODE)
+  using ceres::internal::cudamath::fpclassify;
+#endif  // defined(DEVICE_CODE)
+
   return fpclassify(f.a);
 }
 
 // Determines whether the scalar part of the argument is negative.
 template <typename T, int N>
-inline bool signbit(const Jet<T, N>& f) {
+HOST_DEVICE inline bool signbit(const Jet<T, N>& f) {
   return signbit(f.a);
 }
 
@@ -1084,7 +1141,7 @@ inline bool IsInfinite(const Jet<T, N>& f) {
   return isinf(f);
 }
 
-#ifdef CERES_HAS_CPP20
+#if defined(CERES_HAS_CPP20) && !defined(DEVICE_CODE)
 // Computes the linear interpolation a + t(b - a) between a and b at the value
 // t. For arguments outside of the range 0 <= t <= 1, the values are
 // extrapolated.
@@ -1127,14 +1184,14 @@ inline Jet<T, N> midpoint(const Jet<T, N>& a, const Jet<T, N>& b) {
   }
   return result;
 }
-#endif  // defined(CERES_HAS_CPP20)
+#endif  // defined(CERES_HAS_CPP20) && !defined(DEVICE_CODE)
 
 // atan2(b + db, a + da) ~= atan2(b, a) + (- b da + a db) / (a^2 + b^2)
 //
 // In words: the rate of change of theta is 1/r times the rate of
 // change of (x, y) in the positive angular direction.
 template <typename T, int N>
-inline Jet<T, N> atan2(const Jet<T, N>& g, const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> atan2(const Jet<T, N>& g, const Jet<T, N>& f) {
   // Note order of arguments:
   //
   //   f = a + da
@@ -1156,14 +1213,14 @@ inline Jet<T, N> atan2(const Jet<T, N>& g, const Jet<T, N>& f) {
 //
 // norm(x + h) ~= norm(x) + 2x h
 template <typename T, int N>
-inline Jet<T, N> norm(const Jet<T, N>& f) {
+HOST_DEVICE inline Jet<T, N> norm(const Jet<T, N>& f) {
   return Jet<T, N>(norm(f.a), T(2) * f.a * f.v);
 }
 
 // pow -- base is a differentiable function, exponent is a constant.
 // (a+da)^p ~= a^p + p*a^(p-1) da
 template <typename T, int N>
-inline Jet<T, N> pow(const Jet<T, N>& f, double g) {
+HOST_DEVICE inline Jet<T, N> pow(const Jet<T, N>& f, double g) {
   T const tmp = g * pow(f.a, g - T(1.0));
   return Jet<T, N>(pow(f.a, g), tmp * f.v);
 }
@@ -1180,8 +1237,11 @@ inline Jet<T, N> pow(const Jet<T, N>& f, double g) {
 // != 0, the derivatives are not defined and we return NaN.
 
 template <typename T, int N>
-inline Jet<T, N> pow(T f, const Jet<T, N>& g) {
+HOST_DEVICE inline Jet<T, N> pow(T f, const Jet<T, N>& g) {
   Jet<T, N> result;
+#if defined(DEVICE_CODE)
+  using ceres::internal::cudamath::fpclassify;
+#endif // DEVICE_CODE
 
   if (fpclassify(f) == FP_ZERO && g > 0) {
     // Handle case 2.
@@ -1242,7 +1302,10 @@ inline Jet<T, N> pow(T f, const Jet<T, N>& g) {
 // 9. For f < 0, g noninteger: The value and derivatives of f^g are not finite.
 
 template <typename T, int N>
-inline Jet<T, N> pow(const Jet<T, N>& f, const Jet<T, N>& g) {
+HOST_DEVICE inline Jet<T, N> pow(const Jet<T, N>& f, const Jet<T, N>& g) {
+#if defined(DEVICE_CODE)
+  using ceres::internal::cudamath::fpclassify;
+#endif  // defined(DEVICE_CODE)
   Jet<T, N> result;
 
   if (fpclassify(f) == FP_ZERO && g >= 1) {
@@ -1372,15 +1435,15 @@ struct NumTraits<ceres::Jet<T, N>> {
   using Nested = ceres::Jet<T, N>;
   using Literal = ceres::Jet<T, N>;
 
-  static typename ceres::Jet<T, N> dummy_precision() {
+  HOST_DEVICE static typename ceres::Jet<T, N> dummy_precision() {
     return ceres::Jet<T, N>(1e-12);
   }
 
-  static inline Real epsilon() {
+  HOST_DEVICE static inline Real epsilon() {
     return Real(std::numeric_limits<T>::epsilon());
   }
 
-  static inline int digits10() { return NumTraits<T>::digits10(); }
+  HOST_DEVICE static inline int digits10() { return NumTraits<T>::digits10(); }
 
   enum {
     IsComplex = 0,
@@ -1409,8 +1472,8 @@ struct NumTraits<ceres::Jet<T, N>> {
     };
   };
 
-  static inline Real highest() { return Real((std::numeric_limits<T>::max)()); }
-  static inline Real lowest() { return Real(-(std::numeric_limits<T>::max)()); }
+  HOST_DEVICE static inline Real highest() { return Real((std::numeric_limits<T>::max)()); }
+  HOST_DEVICE static inline Real lowest() { return Real(-(std::numeric_limits<T>::max)()); }
 };
 
 // Specifying the return type of binary operations between Jets and scalar types

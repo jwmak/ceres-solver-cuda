@@ -145,6 +145,7 @@
 #include <utility>
 
 #include "ceres/internal/array_selector.h"
+#include "ceres/internal/cuda_defs.h"
 #include "ceres/internal/eigen.h"
 #include "ceres/internal/fixed_array.h"
 #include "ceres/internal/parameter_dims.h"
@@ -152,6 +153,7 @@
 #include "ceres/jet.h"
 #include "ceres/types.h"
 #include "glog/logging.h"
+
 
 // If the number of parameters exceeds this values, the corresponding jets are
 // placed on the heap. This will reduce performance by a factor of 2-5 on
@@ -183,11 +185,14 @@ namespace ceres::internal {
 template <int j, int N, int Offset, typename T, typename JetT>
 struct Make1stOrderPerturbation {
  public:
-  inline static void Apply(const T* src, JetT* dst) {
+  HOST_DEVICE inline static void Apply(const T* src, JetT* dst) {
+
+  #if !defined(DEVICE_CODE)
     if (j == 0) {
       DCHECK(src);
       DCHECK(dst);
     }
+  #endif  // !defined(DEVICE_CODE)
     dst[j] = JetT(src[j], j + Offset);
     Make1stOrderPerturbation<j + 1, N, Offset, T, JetT>::Apply(src, dst);
   }
@@ -196,7 +201,7 @@ struct Make1stOrderPerturbation {
 template <int N, int Offset, typename T, typename JetT>
 struct Make1stOrderPerturbation<N, N, Offset, T, JetT> {
  public:
-  static void Apply(const T* /* NOT USED */, JetT* /* NOT USED */) {}
+  HOST_DEVICE static void Apply(const T* /* NOT USED */, JetT* /* NOT USED */) {}
 };
 
 // Calls Make1stOrderPerturbation for every parameter block.
@@ -216,7 +221,7 @@ struct Make1stOrderPerturbations<std::integer_sequence<int, N, Ns...>,
                                  ParameterIdx,
                                  Offset> {
   template <typename T, typename JetT>
-  inline static void Apply(T const* const* parameters, JetT* x) {
+  HOST_DEVICE inline static void Apply(T const* const* parameters, JetT* x) {
     Make1stOrderPerturbation<0, N, Offset, T, JetT>::Apply(
         parameters[ParameterIdx], x + Offset);
     Make1stOrderPerturbations<std::integer_sequence<int, Ns...>,
@@ -231,14 +236,17 @@ struct Make1stOrderPerturbations<std::integer_sequence<int>,
                                  ParameterIdx,
                                  Total> {
   template <typename T, typename JetT>
-  static void Apply(T const* const* /* NOT USED */, JetT* /* NOT USED */) {}
+  HOST_DEVICE static void Apply(T const* const* /* NOT USED */, JetT* /* NOT USED */) {}
 };
 
 // Takes the 0th order part of src, assumed to be a Jet type, and puts it in
 // dst. This is used to pick out the "vector" part of the extended y.
 template <typename JetT, typename T>
-inline void Take0thOrderPart(int M, const JetT* src, T dst) {
+HOST_DEVICE inline void Take0thOrderPart(int M, const JetT* src, T dst) {
+#if !defined(DEVICE_CODE)
   DCHECK(src);
+#endif  // !defined(DEVICE_CODE)
+
   for (int i = 0; i < M; ++i) {
     dst[i] = src[i].a;
   }
@@ -247,9 +255,12 @@ inline void Take0thOrderPart(int M, const JetT* src, T dst) {
 // Takes N 1st order parts, starting at index N0, and puts them in the M x N
 // matrix 'dst'. This is used to pick out the "matrix" parts of the extended y.
 template <int N0, int N, typename JetT, typename T>
-inline void Take1stOrderPart(const int M, const JetT* src, T* dst) {
+HOST_DEVICE inline void Take1stOrderPart(const int M, const JetT* src, T* dst) {
+#if !defined(DEVICE_CODE)
   DCHECK(src);
   DCHECK(dst);
+#endif  // !defined(DEVICE_CODE)
+
   for (int i = 0; i < M; ++i) {
     Eigen::Map<Eigen::Matrix<T, N, 1>>(dst + N * i, N) =
         src[i].v.template segment<N>(N0);
@@ -281,7 +292,7 @@ struct Take1stOrderParts<std::integer_sequence<int, N, Ns...>,
                          ParameterIdx,
                          Offset> {
   template <typename JetT, typename T>
-  inline static void Apply(int num_outputs, JetT* output, T** jacobians) {
+  HOST_DEVICE inline static void Apply(int num_outputs, JetT* output, T** jacobians) {
     if (jacobians[ParameterIdx]) {
       Take1stOrderPart<Offset, N>(num_outputs, output, jacobians[ParameterIdx]);
     }
@@ -295,26 +306,28 @@ struct Take1stOrderParts<std::integer_sequence<int, N, Ns...>,
 template <int ParameterIdx, int Offset>
 struct Take1stOrderParts<std::integer_sequence<int>, ParameterIdx, Offset> {
   template <typename T, typename JetT>
-  static void Apply(int /* NOT USED*/,
-                    JetT* /* NOT USED*/,
-                    T** /* NOT USED */) {}
+  HOST_DEVICE static void Apply(int /* NOT USED*/,
+                                JetT* /* NOT USED*/,
+                                T** /* NOT USED */) {}
 };
 
 template <int kNumResiduals,
           typename ParameterDims,
           typename Functor,
           typename T>
-inline bool AutoDifferentiate(const Functor& functor,
-                              T const* const* parameters,
-                              int dynamic_num_outputs,
-                              T* function_value,
-                              T** jacobians) {
+HOST_DEVICE inline bool AutoDifferentiate(const Functor& functor,
+                                          T const* const* parameters,
+                                          int dynamic_num_outputs,
+                                          T* function_value,
+                                          T** jacobians) {
   using JetT = Jet<T, ParameterDims::kNumParameters>;
   using Parameters = typename ParameterDims::Parameters;
 
+#if !defined(DEVICE_CODE)
   if (kNumResiduals != DYNAMIC) {
     DCHECK_EQ(kNumResiduals, dynamic_num_outputs);
   }
+#endif // !defined(DEVICE_CODE)
 
   ArraySelector<JetT,
                 ParameterDims::kNumParameters,
@@ -322,8 +335,14 @@ inline bool AutoDifferentiate(const Functor& functor,
       parameters_as_jets(ParameterDims::kNumParameters);
 
   // Pointers to the beginning of each parameter block
+#if defined(DEVICE_CODE)
+  // std::array is not supported on all CUDA architectures.
+  typename ParameterDims::UnpackedParameters<JetT>
+     unpacked_parameters(parameters_as_jets.data());
+#else
   std::array<JetT*, ParameterDims::kNumParameterBlocks> unpacked_parameters =
       ParameterDims::GetUnpackedParameters(parameters_as_jets.data());
+#endif  // defined(DEVICE_CODE)
 
   // If the number of residuals is fixed, we use the template argument as the
   // number of outputs. Otherwise we use the num_outputs parameter. Note: The
@@ -331,7 +350,10 @@ inline bool AutoDifferentiate(const Functor& functor,
   // a compile-time constant for functors with fixed residuals.
   const int num_outputs =
       kNumResiduals == DYNAMIC ? dynamic_num_outputs : kNumResiduals;
+
+#if !defined(DEVICE_CODE)
   DCHECK_GT(num_outputs, 0);
+#endif  // !defined(DEVICE_CODE)
 
   ArraySelector<JetT, kNumResiduals, CERES_AUTODIFF_MAX_RESIDUALS_ON_STACK>
       residuals_as_jets(num_outputs);

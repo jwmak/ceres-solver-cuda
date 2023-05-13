@@ -75,6 +75,22 @@ target_link_libraries(bicubic_interpolation PRIVATE Ceres::ceres)
 add_executable(bicubic_interpolation_analytic bicubic_interpolation_analytic.cc)
 target_link_libraries(bicubic_interpolation_analytic PRIVATE Ceres::ceres)
 
+if (USE_CUDA)
+  target_include_directories(helloworld PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(helloworld_numeric_diff PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(helloworld_analytic_diff PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(curve_fitting PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(rosenbrock PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(rosenbrock_analytic_diff PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(rosenbrock_numeric_diff PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(curve_fitting_c PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(ellipse_approximation PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(robust_curve_fitting PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(simple_bundle_adjuster PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(bicubic_interpolation PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+  target_include_directories(bicubic_interpolation_analytic PRIVATE ${CUDA_TOOLKIT_INCLUDE})
+endif (USE_CUDA)
+
 if (GFLAGS)
   add_executable(powell powell.cc)
   target_link_libraries(powell PRIVATE Ceres::ceres gflags)
@@ -90,6 +106,17 @@ if (GFLAGS)
 
   add_executable(circle_fit circle_fit.cc)
   target_link_libraries(circle_fit PRIVATE Ceres::ceres gflags)
+ 
+  if (USE_CUDA)
+     set_source_files_properties(bundle_adjuster.cu.cc PROPERTIES LANGUAGE CUDA)
+     add_executable(bundle_adjuster_cuda
+                    bundle_adjuster.cu.cc
+                    bal_problem.cc)
+     target_compile_features(bundle_adjuster_cuda PRIVATE cxx_std_14)
+     target_compile_options(bundle_adjuster_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                            --expt-relaxed-constexpr  > )
+     target_link_libraries(bundle_adjuster_cuda PRIVATE Ceres::ceres gflags)
+  endif (USE_CUDA)
 
   add_executable(bundle_adjuster
                  bundle_adjuster.cc
@@ -112,6 +139,19 @@ if (GFLAGS)
   add_executable(robot_pose_mle
                  robot_pose_mle.cc)
   target_link_libraries(robot_pose_mle PRIVATE Ceres::ceres gflags)
+
+  if (USE_CUDA)
+    target_include_directories(powell PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(nist PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(more_garbow_hillstrom PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(circle_fit PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(bundle_adjuster_cuda PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(bundle_adjuster PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(libmv_bundle_adjuster PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(libmv_homography PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(denoising PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+    target_include_directories(robot_pose_mle PRIVATE ${CUDA_TOOLKIT_INCLUDE} )
+  endif (USE_CUDA)
 endif (GFLAGS)
 
 add_subdirectory(sampled_function)

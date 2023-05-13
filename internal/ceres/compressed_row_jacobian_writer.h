@@ -82,7 +82,8 @@ class CERES_NO_EXPORT CompressedRowJacobianWriter {
   static void GetOrderedParameterBlocks(
       const Program* program,
       int residual_id,
-      std::vector<std::pair<int, int>>* evaluated_jacobian_blocks);
+      std::vector<std::pair<int, int>>* evaluated_jacobian_blocks,
+      bool get_active_parameter_index = false);
 
   // JacobianWriter interface.
 
@@ -101,6 +102,13 @@ class CERES_NO_EXPORT CompressedRowJacobianWriter {
              int residual_offset,
              double** jacobians,
              SparseMatrix* base_jacobian);
+
+  // Create data structures that store the correct locations to write
+  // each jacobian block *per residual*. These structures are needed
+  // for evaluating cost functions in parallel using CUDA.
+  void CreateJacobianPerResidualLayout(std::vector<int>* jacobian_per_residual_layout,
+                                       std::vector<int>* jacobian_per_residual_offsets,
+                                       int* num_jacobian_values);
 
  private:
   Program* program_;

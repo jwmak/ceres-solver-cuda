@@ -44,6 +44,7 @@
 #include "ceres/detect_structure.h"
 #include "ceres/eigensparse.h"
 #include "ceres/gradient_checking_cost_function.h"
+#include "ceres/internal/config.h"
 #include "ceres/internal/export.h"
 #include "ceres/parameter_block_ordering.h"
 #include "ceres/preprocessor.h"
@@ -681,7 +682,8 @@ bool IsCudaRequired(const Solver::Options& options) {
   if (options.linear_solver_type == CGNR) {
     return (options.sparse_linear_algebra_library_type == CUDA_SPARSE);
   }
-  return false;
+
+  return options.use_cuda_for_evaluator;
 }
 #endif
 
@@ -694,6 +696,14 @@ bool Solver::Options::IsValid(std::string* error) const {
 
   if (minimizer_type == TRUST_REGION &&
       !TrustRegionOptionsAreValid(*this, error)) {
+    return false;
+  }
+
+  if (minimizer_type != TRUST_REGION &&
+      use_cuda_for_evaluator) {
+    *error =
+        "CUDA evaluation of cost functions is only "
+        "supported for trust-region minimizers";
     return false;
   }
 
@@ -732,10 +742,18 @@ void Solver::Solve(const Solver::Options& options,
 
 #ifndef CERES_NO_CUDA
   if (IsCudaRequired(options)) {
-    if (!problem_impl->context()->InitCuda(&summary->message)) {
-      LOG(ERROR) << "Terminating: " << summary->message;
-      return;
+    if (!problem_impl->context()->IsCudaInitialized()) {
+      if (!problem_impl->context()->InitCuda(&summary->message)) {
+        LOG(ERROR) << "Terminating: " << summary->message;
+        return;
+      }
     }
+  }
+#else
+  if (options.use_cuda_for_evaluator) {
+    LOG(ERROR) << "Solver::Options is requesting to use CUDA "
+               << "for parallel cost function evaluation but "
+               << "Ceres has been built without CUDA support.";
   }
 #endif  // CERES_NO_CUDA
 

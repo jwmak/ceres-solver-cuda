@@ -36,7 +36,7 @@
 #ifndef CERES_NO_CUDA
 
 #include "ceres/block_structure.h"
-#include "ceres/cuda_buffer.h"
+#include "ceres/internal/cuda_buffer.h"
 
 namespace ceres::internal {
 class CudaBlockStructureTest;

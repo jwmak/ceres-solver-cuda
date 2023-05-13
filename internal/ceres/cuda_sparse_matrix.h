@@ -48,7 +48,7 @@
 #include "ceres/types.h"
 
 #ifndef CERES_NO_CUDA
-#include "ceres/cuda_buffer.h"
+#include "ceres/internal/cuda_buffer.h"
 #include "ceres/cuda_vector.h"
 #include "cusparse.h"
 

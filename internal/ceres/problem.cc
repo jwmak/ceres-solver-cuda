@@ -65,6 +65,21 @@ ResidualBlockId Problem::AddResidualBlock(CostFunction* cost_function,
       cost_function, loss_function, parameter_blocks, num_parameter_blocks);
 }
 
+ResidualBlockId Problem::AddResidualBlockCUDA(
+    internal::ResidualBlockCUDA* residual_block_cuda,
+    CostFunction* cost_function,
+    double* const* const parameter_blocks,
+    int num_parameter_blocks) {
+  return impl_->AddResidualBlockCUDA(residual_block_cuda,
+                                     cost_function,
+                                     parameter_blocks,
+                                     num_parameter_blocks);
+}
+
+internal::ContextImpl* Problem::context() {
+  return impl_->context();
+}
+
 void Problem::AddParameterBlock(double* values, int size) {
   impl_->AddParameterBlock(values, size);
 }

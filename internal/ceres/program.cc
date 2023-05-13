@@ -58,6 +58,10 @@ const std::vector<ParameterBlock*>& Program::parameter_blocks() const {
   return parameter_blocks_;
 }
 
+const std::vector<ParameterBlock*>& Program::constant_parameter_blocks() const {
+  return constant_parameter_blocks_;
+}
+
 const std::vector<ResidualBlock*>& Program::residual_blocks() const {
   return residual_blocks_;
 }
@@ -88,6 +92,13 @@ void Program::ParameterBlocksToStateVector(double* state) const {
   for (auto* parameter_block : parameter_blocks_) {
     parameter_block->GetState(state);
     state += parameter_block->Size();
+  }
+}
+
+void Program::ConstantParameterBlocksToStateVector(double* state) const {
+  for (int i = 0; i < constant_parameter_blocks_.size(); ++i) {
+    constant_parameter_blocks_[i]->GetState(state);
+    state += constant_parameter_blocks_[i]->Size();
   }
 }
 
@@ -154,6 +165,14 @@ void Program::SetParameterOffsetsAndIndex() {
     parameter_blocks_[i]->set_delta_offset(delta_offset);
     state_offset += parameter_blocks_[i]->Size();
     delta_offset += parameter_blocks_[i]->TangentSize();
+  }
+
+  // For constant parameters, set their position and offset.
+  state_offset = 0;
+  for (int i = 0; i < constant_parameter_blocks_.size(); ++i) {
+    constant_parameter_blocks_[i]->set_index(i);
+    constant_parameter_blocks_[i]->set_state_offset(state_offset);
+    state_offset += constant_parameter_blocks_[i]->Size();
   }
 }
 
@@ -341,6 +360,7 @@ bool Program::RemoveFixedBlocks(std::vector<double*>* removed_parameter_blocks,
     }
 
     if (!all_constant) {
+      residual_block->set_index(num_active_residual_blocks);
       residual_blocks_[num_active_residual_blocks++] = residual_block;
       continue;
     }
@@ -389,12 +409,14 @@ bool Program::RemoveFixedBlocks(std::vector<double*>* removed_parameter_blocks,
   residual_blocks_.resize(num_active_residual_blocks);
 
   // Filter out unused or fixed parameter blocks.
-  int num_active_parameter_blocks = 0;
   removed_parameter_blocks->clear();
+  constant_parameter_blocks_.clear();
+  int num_active_parameter_blocks = 0;
   for (auto* parameter_block : parameter_blocks_) {
     if (parameter_block->index() == -1) {
+      constant_parameter_blocks_.push_back(parameter_block);
       removed_parameter_blocks->push_back(
-          parameter_block->mutable_user_state());
+                parameter_block->mutable_user_state());
     } else {
       parameter_blocks_[num_active_parameter_blocks++] = parameter_block;
     }
@@ -494,6 +516,14 @@ int Program::NumParameters() const {
     num_parameters += parameter_block->Size();
   }
   return num_parameters;
+}
+
+int Program::NumConstantParameters() const {
+  int num_removed_parameters = 0;
+  for (auto* parameter_block : constant_parameter_blocks_) {
+    num_removed_parameters += parameter_block->Size();
+  }
+  return num_removed_parameters;
 }
 
 int Program::NumEffectiveParameters() const {

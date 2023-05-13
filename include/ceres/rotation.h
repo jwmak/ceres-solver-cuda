@@ -28,6 +28,7 @@
 //
 // Author: keir@google.com (Keir Mierle)
 //         sameeragarwal@google.com (Sameer Agarwal)
+//         jwmak@ucdavis.edu (Jason Mak)
 //
 // Templated functions for manipulating rotations. The templated
 // functions are useful when implementing functors for automatic
@@ -48,7 +49,11 @@
 #include <algorithm>
 #include <cmath>
 
+#include "ceres/internal/config.h"
+
 #include "ceres/constants.h"
+#include "ceres/internal/cuda_defs.h"
+#include "ceres/internal/cudamath/cuda_math.h"
 #include "ceres/internal/euler_angles.h"
 #include "glog/logging.h"
 
@@ -74,10 +79,10 @@ struct MatrixAdapter;
 // array pointed to by "pointer" as a 3x3 (contiguous) column-major or
 // row-major matrix.
 template <typename T>
-MatrixAdapter<T, 1, 3> ColumnMajorAdapter3x3(T* pointer);
+HOST_DEVICE MatrixAdapter<T, 1, 3> ColumnMajorAdapter3x3(T* pointer);
 
 template <typename T>
-MatrixAdapter<T, 3, 1> RowMajorAdapter3x3(T* pointer);
+HOST_DEVICE MatrixAdapter<T, 3, 1> RowMajorAdapter3x3(T* pointer);
 
 // Convert a value in combined axis-angle representation to a quaternion.
 // The value angle_axis is a triple whose norm is an angle in radians,
@@ -86,7 +91,7 @@ MatrixAdapter<T, 3, 1> RowMajorAdapter3x3(T* pointer);
 // The implementation may be used with auto-differentiation up to the first
 // derivative, higher derivatives may have unexpected results near the origin.
 template <typename T>
-void AngleAxisToQuaternion(const T* angle_axis, T* quaternion);
+HOST_DEVICE void AngleAxisToQuaternion(const T* angle_axis, T* quaternion);
 
 // Convert a quaternion to the equivalent combined axis-angle representation.
 // The value quaternion must be a unit quaternion - it is not normalized first,
@@ -95,33 +100,33 @@ void AngleAxisToQuaternion(const T* angle_axis, T* quaternion);
 // The implementation may be used with auto-differentiation up to the first
 // derivative, higher derivatives may have unexpected results near the origin.
 template <typename T>
-void QuaternionToAngleAxis(const T* quaternion, T* angle_axis);
+HOST_DEVICE void QuaternionToAngleAxis(const T* quaternion, T* angle_axis);
 
 // Conversions between 3x3 rotation matrix (in column major order) and
 // quaternion rotation representations. Templated for use with
 // autodifferentiation.
 template <typename T>
-void RotationMatrixToQuaternion(const T* R, T* quaternion);
+HOST_DEVICE void RotationMatrixToQuaternion(const T* R, T* quaternion);
 
 template <typename T, int row_stride, int col_stride>
-void RotationMatrixToQuaternion(
+HOST_DEVICE void RotationMatrixToQuaternion(
     const MatrixAdapter<const T, row_stride, col_stride>& R, T* quaternion);
 
 // Conversions between 3x3 rotation matrix (in column major order) and
 // axis-angle rotation representations. Templated for use with
 // autodifferentiation.
 template <typename T>
-void RotationMatrixToAngleAxis(const T* R, T* angle_axis);
+HOST_DEVICE void RotationMatrixToAngleAxis(const T* R, T* angle_axis);
 
 template <typename T, int row_stride, int col_stride>
-void RotationMatrixToAngleAxis(
+HOST_DEVICE void RotationMatrixToAngleAxis(
     const MatrixAdapter<const T, row_stride, col_stride>& R, T* angle_axis);
 
 template <typename T>
-void AngleAxisToRotationMatrix(const T* angle_axis, T* R);
+HOST_DEVICE void AngleAxisToRotationMatrix(const T* angle_axis, T* R);
 
 template <typename T, int row_stride, int col_stride>
-void AngleAxisToRotationMatrix(
+HOST_DEVICE void AngleAxisToRotationMatrix(
     const T* angle_axis, const MatrixAdapter<T, row_stride, col_stride>& R);
 
 // Conversions between 3x3 rotation matrix (in row major order) and
@@ -131,10 +136,10 @@ void AngleAxisToRotationMatrix(
 // axes, respectively.  They are applied in that same order, so the
 // total rotation R is Rz * Ry * Rx.
 template <typename T>
-void EulerAnglesToRotationMatrix(const T* euler, int row_stride, T* R);
+HOST_DEVICE void EulerAnglesToRotationMatrix(const T* euler, int row_stride, T* R);
 
 template <typename T, int row_stride, int col_stride>
-void EulerAnglesToRotationMatrix(
+HOST_DEVICE void EulerAnglesToRotationMatrix(
     const T* euler, const MatrixAdapter<T, row_stride, col_stride>& R);
 
 // Convert a generic Euler Angle sequence (in radians) to a 3x3 rotation matrix.
@@ -164,10 +169,10 @@ void EulerAnglesToRotationMatrix(
 //
 // The order of elements in the input array 'euler' follows the axis sequence
 template <typename EulerSystem, typename T>
-inline void EulerAnglesToRotation(const T* euler, T* R);
+HOST_DEVICE inline void EulerAnglesToRotation(const T* euler, T* R);
 
 template <typename EulerSystem, typename T, int row_stride, int col_stride>
-void EulerAnglesToRotation(const T* euler,
+HOST_DEVICE void EulerAnglesToRotation(const T* euler,
                            const MatrixAdapter<T, row_stride, col_stride>& R);
 
 // Convert a 3x3 rotation matrix to a generic Euler Angle sequence (in radians)
@@ -196,10 +201,10 @@ void EulerAnglesToRotation(const T* euler,
 //
 // The order of elements in the output array 'euler' follows the axis sequence
 template <typename EulerSystem, typename T>
-inline void RotationMatrixToEulerAngles(const T* R, T* euler);
+HOST_DEVICE inline void RotationMatrixToEulerAngles(const T* R, T* euler);
 
 template <typename EulerSystem, typename T, int row_stride, int col_stride>
-void RotationMatrixToEulerAngles(
+HOST_DEVICE void RotationMatrixToEulerAngles(
     const MatrixAdapter<const T, row_stride, col_stride>& R, T* euler);
 
 // Convert a 4-vector to a 3x3 scaled rotation matrix.
@@ -222,10 +227,10 @@ void RotationMatrixToEulerAngles(
 //
 // WARNING: The rotation matrix is ROW MAJOR
 template <typename T>
-inline void QuaternionToScaledRotation(const T q[4], T R[3 * 3]);
+HOST_DEVICE inline void QuaternionToScaledRotation(const T q[4], T R[3 * 3]);
 
 template <typename T, int row_stride, int col_stride>
-inline void QuaternionToScaledRotation(
+HOST_DEVICE inline void QuaternionToScaledRotation(
     const T q[4], const MatrixAdapter<T, row_stride, col_stride>& R);
 
 // Same as above except that the rotation matrix is normalized by the
@@ -233,10 +238,10 @@ inline void QuaternionToScaledRotation(
 //
 // WARNING: The rotation matrix is ROW MAJOR
 template <typename T>
-inline void QuaternionToRotation(const T q[4], T R[3 * 3]);
+HOST_DEVICE inline void QuaternionToRotation(const T q[4], T R[3 * 3]);
 
 template <typename T, int row_stride, int col_stride>
-inline void QuaternionToRotation(
+HOST_DEVICE inline void QuaternionToRotation(
     const T q[4], const MatrixAdapter<T, row_stride, col_stride>& R);
 
 // Rotates a point pt by a quaternion q:
@@ -251,7 +256,7 @@ inline void QuaternionToRotation(
 // Inplace rotation is not supported. pt and result must point to different
 // memory locations, otherwise the result will be undefined.
 template <typename T>
-inline void UnitQuaternionRotatePoint(const T q[4], const T pt[3], T result[3]);
+HOST_DEVICE inline void UnitQuaternionRotatePoint(const T q[4], const T pt[3], T result[3]);
 
 // With this function you do not need to assume that q has unit norm.
 // It does assume that the norm is non-zero.
@@ -259,7 +264,7 @@ inline void UnitQuaternionRotatePoint(const T q[4], const T pt[3], T result[3]);
 // Inplace rotation is not supported. pt and result must point to different
 // memory locations, otherwise the result will be undefined.
 template <typename T>
-inline void QuaternionRotatePoint(const T q[4], const T pt[3], T result[3]);
+HOST_DEVICE inline void QuaternionRotatePoint(const T q[4], const T pt[3], T result[3]);
 
 // zw = z * w, where * is the Quaternion product between 4 vectors.
 //
@@ -267,7 +272,7 @@ inline void QuaternionRotatePoint(const T q[4], const T pt[3], T result[3]);
 // not share the memory with the input quaternion z and w, otherwise the result
 // will be undefined.
 template <typename T>
-inline void QuaternionProduct(const T z[4], const T w[4], T zw[4]);
+HOST_DEVICE inline void QuaternionProduct(const T z[4], const T w[4], T zw[4]);
 
 // xy = x cross y;
 //
@@ -275,17 +280,17 @@ inline void QuaternionProduct(const T z[4], const T w[4], T zw[4]);
 // not share the memory with the input vectors x and y, otherwise the result
 // will be undefined.
 template <typename T>
-inline void CrossProduct(const T x[3], const T y[3], T x_cross_y[3]);
+HOST_DEVICE inline void CrossProduct(const T x[3], const T y[3], T x_cross_y[3]);
 
 template <typename T>
-inline T DotProduct(const T x[3], const T y[3]);
+HOST_DEVICE inline T DotProduct(const T x[3], const T y[3]);
 
 // y = R(angle_axis) * x;
 //
 // Inplace rotation is not supported. pt and result must point to different
 // memory locations, otherwise the result will be undefined.
 template <typename T>
-inline void AngleAxisRotatePoint(const T angle_axis[3],
+HOST_DEVICE inline void AngleAxisRotatePoint(const T angle_axis[3],
                                  const T pt[3],
                                  T result[3]);
 
@@ -294,27 +299,33 @@ inline void AngleAxisRotatePoint(const T angle_axis[3],
 template <typename T, int row_stride, int col_stride>
 struct MatrixAdapter {
   T* pointer_;
-  explicit MatrixAdapter(T* pointer) : pointer_(pointer) {}
+  HOST_DEVICE explicit MatrixAdapter(T* pointer) : pointer_(pointer) {}
 
-  T& operator()(int r, int c) const {
+  HOST_DEVICE T& operator()(int r, int c) const {
     return pointer_[r * row_stride + c * col_stride];
   }
 };
 
 template <typename T>
-MatrixAdapter<T, 1, 3> ColumnMajorAdapter3x3(T* pointer) {
+HOST_DEVICE MatrixAdapter<T, 1, 3> ColumnMajorAdapter3x3(T* pointer) {
   return MatrixAdapter<T, 1, 3>(pointer);
 }
 
 template <typename T>
-MatrixAdapter<T, 3, 1> RowMajorAdapter3x3(T* pointer) {
+HOST_DEVICE MatrixAdapter<T, 3, 1> RowMajorAdapter3x3(T* pointer) {
   return MatrixAdapter<T, 3, 1>(pointer);
 }
 
 template <typename T>
-inline void AngleAxisToQuaternion(const T* angle_axis, T* quaternion) {
+HOST_DEVICE inline void AngleAxisToQuaternion(const T* angle_axis, T* quaternion) {
+#if !defined(DEVICE_CODE)
   using std::fpclassify;
   using std::hypot;
+#else
+  using ceres::internal::cudamath::fpclassify;
+  using ceres::internal::cudamath::hypot;
+#endif  // !defined(DEVICE_CODE)
+
   const T& a0 = angle_axis[0];
   const T& a1 = angle_axis[1];
   const T& a2 = angle_axis[2];
@@ -342,9 +353,15 @@ inline void AngleAxisToQuaternion(const T* angle_axis, T* quaternion) {
 }
 
 template <typename T>
-inline void QuaternionToAngleAxis(const T* quaternion, T* angle_axis) {
+HOST_DEVICE inline void QuaternionToAngleAxis(const T* quaternion, T* angle_axis) {
+#if !defined(DEVICE_CODE)
   using std::fpclassify;
   using std::hypot;
+#else
+  using ceres::internal::cudamath::fpclassify;
+  using ceres::internal::cudamath::hypot;
+#endif  // !defined(DEVICE_CODE)
+
   const T& q1 = quaternion[1];
   const T& q2 = quaternion[2];
   const T& q3 = quaternion[3];
@@ -388,14 +405,14 @@ inline void QuaternionToAngleAxis(const T* quaternion, T* angle_axis) {
 }
 
 template <typename T>
-void RotationMatrixToQuaternion(const T* R, T* quaternion) {
+HOST_DEVICE void RotationMatrixToQuaternion(const T* R, T* quaternion) {
   RotationMatrixToQuaternion(ColumnMajorAdapter3x3(R), quaternion);
 }
 
 // This algorithm comes from "Quaternion Calculus and Fast Animation",
 // Ken Shoemake, 1987 SIGGRAPH course notes
 template <typename T, int row_stride, int col_stride>
-void RotationMatrixToQuaternion(
+HOST_DEVICE void RotationMatrixToQuaternion(
     const MatrixAdapter<const T, row_stride, col_stride>& R, T* quaternion) {
   const T trace = R(0, 0) + R(1, 1) + R(2, 2);
   if (trace >= 0.0) {
@@ -432,12 +449,12 @@ void RotationMatrixToQuaternion(
 // occurs and deals with them by taking code paths that are guaranteed
 // to not perform division by a small number.
 template <typename T>
-inline void RotationMatrixToAngleAxis(const T* R, T* angle_axis) {
+HOST_DEVICE inline void RotationMatrixToAngleAxis(const T* R, T* angle_axis) {
   RotationMatrixToAngleAxis(ColumnMajorAdapter3x3(R), angle_axis);
 }
 
 template <typename T, int row_stride, int col_stride>
-void RotationMatrixToAngleAxis(
+HOST_DEVICE void RotationMatrixToAngleAxis(
     const MatrixAdapter<const T, row_stride, col_stride>& R, T* angle_axis) {
   T quaternion[4];
   RotationMatrixToQuaternion(R, quaternion);
@@ -446,17 +463,24 @@ void RotationMatrixToAngleAxis(
 }
 
 template <typename T>
-inline void AngleAxisToRotationMatrix(const T* angle_axis, T* R) {
+HOST_DEVICE inline void AngleAxisToRotationMatrix(const T* angle_axis, T* R) {
   AngleAxisToRotationMatrix(angle_axis, ColumnMajorAdapter3x3(R));
 }
 
 template <typename T, int row_stride, int col_stride>
-void AngleAxisToRotationMatrix(
+HOST_DEVICE void AngleAxisToRotationMatrix(
     const T* angle_axis, const MatrixAdapter<T, row_stride, col_stride>& R) {
+#if !defined(DEVICE_CODE)
   using std::fpclassify;
   using std::hypot;
+#else
+  using ceres::internal::cudamath::fpclassify;
+  using ceres::internal::cudamath::hypot;
+#endif  // !defined(DEVICE_CODE)
+
   static const T kOne = T(1.0);
   const T theta = hypot(angle_axis[0], angle_axis[1], angle_axis[2]);
+
   if (fpclassify(theta) != FP_ZERO) {
     // We want to be careful to only evaluate the square root if the
     // norm of the angle_axis vector is greater than zero. Otherwise
@@ -494,13 +518,15 @@ void AngleAxisToRotationMatrix(
 }
 
 template <typename EulerSystem, typename T>
-inline void EulerAnglesToRotation(const T* euler, T* R) {
+HOST_DEVICE inline void EulerAnglesToRotation(const T* euler, T* R) {
   EulerAnglesToRotation<EulerSystem>(euler, RowMajorAdapter3x3(R));
 }
 
 template <typename EulerSystem, typename T, int row_stride, int col_stride>
-void EulerAnglesToRotation(const T* euler,
-                           const MatrixAdapter<T, row_stride, col_stride>& R) {
+HOST_DEVICE void EulerAnglesToRotation(const T* euler,
+                                       const MatrixAdapter<T,
+                                       row_stride,
+                                       col_stride>& R) {
   using std::cos;
   using std::sin;
 
@@ -555,16 +581,21 @@ void EulerAnglesToRotation(const T* euler,
 }
 
 template <typename EulerSystem, typename T>
-inline void RotationMatrixToEulerAngles(const T* R, T* euler) {
+HOST_DEVICE inline void RotationMatrixToEulerAngles(const T* R, T* euler) {
   RotationMatrixToEulerAngles<EulerSystem>(RowMajorAdapter3x3(R), euler);
 }
 
 template <typename EulerSystem, typename T, int row_stride, int col_stride>
-void RotationMatrixToEulerAngles(
+HOST_DEVICE void RotationMatrixToEulerAngles(
     const MatrixAdapter<const T, row_stride, col_stride>& R, T* euler) {
   using std::atan2;
+#if !defined(DEVICE_CODE)
   using std::fpclassify;
   using std::hypot;
+#else
+  using ceres::internal::cudamath::fpclassify;
+  using ceres::internal::cudamath::hypot;
+#endif  // !defined(DEVICE_CODE)
 
   const auto [i, j, k] = EulerSystem::kAxes;
 
@@ -629,14 +660,14 @@ void RotationMatrixToEulerAngles(
 }
 
 template <typename T>
-inline void EulerAnglesToRotationMatrix(const T* euler,
+HOST_DEVICE inline void EulerAnglesToRotationMatrix(const T* euler,
                                         const int row_stride_parameter,
                                         T* R) {
   EulerAnglesToRotationMatrix(euler, RowMajorAdapter3x3(R));
 }
 
 template <typename T, int row_stride, int col_stride>
-void EulerAnglesToRotationMatrix(
+HOST_DEVICE void EulerAnglesToRotationMatrix(
     const T* euler, const MatrixAdapter<T, row_stride, col_stride>& R) {
   const double kPi = 3.14159265358979323846;
   const T degrees_to_radians(kPi / 180.0);
@@ -666,12 +697,12 @@ void EulerAnglesToRotationMatrix(
 }
 
 template <typename T>
-inline void QuaternionToScaledRotation(const T q[4], T R[3 * 3]) {
+HOST_DEVICE inline void QuaternionToScaledRotation(const T q[4], T R[3 * 3]) {
   QuaternionToScaledRotation(q, RowMajorAdapter3x3(R));
 }
 
 template <typename T, int row_stride, int col_stride>
-inline void QuaternionToScaledRotation(
+HOST_DEVICE inline void QuaternionToScaledRotation(
     const T q[4], const MatrixAdapter<T, row_stride, col_stride>& R) {
   // Make convenient names for elements of q.
   T a = q[0];
@@ -699,12 +730,12 @@ inline void QuaternionToScaledRotation(
 }
 
 template <typename T>
-inline void QuaternionToRotation(const T q[4], T R[3 * 3]) {
+HOST_DEVICE inline void QuaternionToRotation(const T q[4], T R[3 * 3]) {
   QuaternionToRotation(q, RowMajorAdapter3x3(R));
 }
 
 template <typename T, int row_stride, int col_stride>
-inline void QuaternionToRotation(
+HOST_DEVICE inline void QuaternionToRotation(
     const T q[4], const MatrixAdapter<T, row_stride, col_stride>& R) {
   QuaternionToScaledRotation(q, R);
 
@@ -719,10 +750,12 @@ inline void QuaternionToRotation(
 }
 
 template <typename T>
-inline void UnitQuaternionRotatePoint(const T q[4],
-                                      const T pt[3],
-                                      T result[3]) {
+HOST_DEVICE inline void UnitQuaternionRotatePoint(const T q[4],
+                                                  const T pt[3],
+                                                  T result[3]) {
+#if !defined(DEVICE_CODE)
   DCHECK_NE(pt, result) << "Inplace rotation is not supported.";
+#endif  // !defined(DEVICE_CODE)
 
   // clang-format off
   T uv0 = q[2] * pt[2] - q[3] * pt[1];
@@ -741,9 +774,10 @@ inline void UnitQuaternionRotatePoint(const T q[4],
 }
 
 template <typename T>
-inline void QuaternionRotatePoint(const T q[4], const T pt[3], T result[3]) {
+HOST_DEVICE inline void QuaternionRotatePoint(const T q[4], const T pt[3], T result[3]) {
+#if !defined(DEVICE_CODE)
   DCHECK_NE(pt, result) << "Inplace rotation is not supported.";
-
+#endif  // !defined(DEVICE_CODE)
   // 'scale' is 1 / norm(q).
   const T scale =
       T(1) / sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
@@ -760,9 +794,11 @@ inline void QuaternionRotatePoint(const T q[4], const T pt[3], T result[3]) {
 }
 
 template <typename T>
-inline void QuaternionProduct(const T z[4], const T w[4], T zw[4]) {
+HOST_DEVICE inline void QuaternionProduct(const T z[4], const T w[4], T zw[4]) {
+#if !defined(DEVICE_CODE)
   DCHECK_NE(z, zw) << "Inplace quaternion product is not supported.";
   DCHECK_NE(w, zw) << "Inplace quaternion product is not supported.";
+#endif  // !defined(DEVICE_CODE)
 
   // clang-format off
   zw[0] = z[0] * w[0] - z[1] * w[1] - z[2] * w[2] - z[3] * w[3];
@@ -774,9 +810,11 @@ inline void QuaternionProduct(const T z[4], const T w[4], T zw[4]) {
 
 // xy = x cross y;
 template <typename T>
-inline void CrossProduct(const T x[3], const T y[3], T x_cross_y[3]) {
+HOST_DEVICE inline void CrossProduct(const T x[3], const T y[3], T x_cross_y[3]) {
+#if !defined(DEVICE_CODE)
   DCHECK_NE(x, x_cross_y) << "Inplace cross product is not supported.";
   DCHECK_NE(y, x_cross_y) << "Inplace cross product is not supported.";
+#endif  // !defined(DEVICE_CODE)
 
   x_cross_y[0] = x[1] * y[2] - x[2] * y[1];
   x_cross_y[1] = x[2] * y[0] - x[0] * y[2];
@@ -784,20 +822,24 @@ inline void CrossProduct(const T x[3], const T y[3], T x_cross_y[3]) {
 }
 
 template <typename T>
-inline T DotProduct(const T x[3], const T y[3]) {
+HOST_DEVICE inline T DotProduct(const T x[3], const T y[3]) {
   return (x[0] * y[0] + x[1] * y[1] + x[2] * y[2]);
 }
 
 template <typename T>
-inline void AngleAxisRotatePoint(const T angle_axis[3],
-                                 const T pt[3],
-                                 T result[3]) {
+HOST_DEVICE inline void AngleAxisRotatePoint(const T angle_axis[3],
+                                             const T pt[3],
+                                             T result[3]) {
+#if !defined(DEVICE_CODE)
   DCHECK_NE(pt, result) << "Inplace rotation is not supported.";
   using std::fpclassify;
   using std::hypot;
+#else
+  using ceres::internal::cudamath::fpclassify;
+  using ceres::internal::cudamath::hypot;
+#endif  // !defined(DEVICE_CODE)
 
   const T theta = hypot(angle_axis[0], angle_axis[1], angle_axis[2]);
-
   if (fpclassify(theta) != FP_ZERO) {
     // Away from zero, use the rodriguez formula
     //

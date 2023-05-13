@@ -41,7 +41,7 @@
 
 #include "Eigen/Dense"
 #include "ceres/context_impl.h"
-#include "ceres/cuda_buffer.h"
+#include "ceres/internal/cuda_buffer.h"
 #include "ceres/linear_solver.h"
 #include "glog/logging.h"
 #ifndef CERES_NO_CUDA

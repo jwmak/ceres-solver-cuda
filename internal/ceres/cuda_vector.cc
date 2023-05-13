@@ -43,9 +43,9 @@
 
 #ifndef CERES_NO_CUDA
 
-#include "ceres/cuda_buffer.h"
 #include "ceres/cuda_kernels.h"
 #include "ceres/cuda_vector.h"
+#include "ceres/internal/cuda_buffer.h"
 #include "cublas_v2.h"
 
 namespace ceres::internal {

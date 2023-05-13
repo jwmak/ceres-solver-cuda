@@ -39,9 +39,9 @@
 #include <memory>
 
 #include "ceres/block_sparse_matrix.h"
-#include "ceres/cuda_buffer.h"
 #include "ceres/cuda_sparse_matrix.h"
 #include "ceres/cuda_streamed_buffer.h"
+#include "ceres/internal/cuda_buffer.h"
 
 namespace ceres::internal {
 // We use cuSPARSE library for SpMV operations. However, it does not support

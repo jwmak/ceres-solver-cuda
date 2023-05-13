@@ -41,6 +41,7 @@
 #ifndef CERES_EXAMPLES_SNAVELY_REPROJECTION_ERROR_H_
 #define CERES_EXAMPLES_SNAVELY_REPROJECTION_ERROR_H_
 
+#include "ceres/internal/cuda_defs.h"
 #include "ceres/rotation.h"
 
 namespace ceres {
@@ -51,13 +52,13 @@ namespace examples {
 // focal length and 2 for radial distortion. The principal point is not modeled
 // (i.e. it is assumed be located at the image center).
 struct SnavelyReprojectionError {
-  SnavelyReprojectionError(double observed_x, double observed_y)
+  HOST_DEVICE SnavelyReprojectionError(double observed_x, double observed_y)
       : observed_x(observed_x), observed_y(observed_y) {}
 
   template <typename T>
-  bool operator()(const T* const camera,
-                  const T* const point,
-                  T* residuals) const {
+  HOST_DEVICE bool operator()(const T* const camera,
+                              const T* const point,
+                              T* residuals) const {
     // camera[0,1,2] are the angle-axis rotation.
     T p[3];
     AngleAxisRotatePoint(camera, point, p);
@@ -111,13 +112,13 @@ struct SnavelyReprojectionError {
 struct SnavelyReprojectionErrorWithQuaternions {
   // (u, v): the position of the observation with respect to the image
   // center point.
-  SnavelyReprojectionErrorWithQuaternions(double observed_x, double observed_y)
+  HOST_DEVICE SnavelyReprojectionErrorWithQuaternions(double observed_x, double observed_y)
       : observed_x(observed_x), observed_y(observed_y) {}
 
   template <typename T>
-  bool operator()(const T* const camera,
-                  const T* const point,
-                  T* residuals) const {
+  HOST_DEVICE bool operator()(const T* const camera,
+                              const T* const point,
+                              T* residuals) const {
     // camera[0,1,2,3] is are the rotation of the camera as a quaternion.
     //
     // We use QuaternionRotatePoint as it does not assume that the

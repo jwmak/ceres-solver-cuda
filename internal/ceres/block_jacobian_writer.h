@@ -73,6 +73,14 @@ class CERES_NO_EXPORT BlockJacobianWriter {
     // prepared by the BlockEvaluatePreparers.
   }
 
+  // Create data structures that store the correct locations to write
+  // each jacobian block *per residual*. These structures are needed
+  // for evaluating cost functions in parallel using CUDA.
+  void CreateJacobianPerResidualLayout(std::vector<int>* jacobian_per_residual_layout,
+                                       std::vector<int>* jacobian_per_residual_offsets,
+                                       int* num_jacobian_values);
+
+
  private:
   Program* program_;
 
@@ -121,6 +129,51 @@ class CERES_NO_EXPORT BlockJacobianWriter {
 
   // The pointers in jacobian_layout_ point directly into this vector.
   std::vector<int> jacobian_layout_storage_;
+
+  // Points to locations where a jacobian block *per residual*
+  // is stored. Unlike jacobian_layout_, this stores a vector
+  // of indices (ints) rather than a vector of int*. This is due
+  // to the fact that jacobian_per_residual_offsets_ will be
+  // stored on the GPU, where pointers to host memory are invalid.
+  //
+  // For example, given a residual block with
+  // 3 parameter blocks and 2 residuals and a 2nd residual block
+  // with 2 parameter blocks and 3 residuals:
+  //
+  // jacobian_per_residual_layout_[0] = 0
+  // jacobian_per_residual_layout_[1] = 6
+  //
+  // Then, in jacobian_per_residual_offsets_:
+  // For residual block 1,
+  // At index 0, the location of the 1st residual of the
+  // 1st parameter block is stored.
+  // At index 1, the location of the 2nd residual of the
+  // 1st parameter_block is stored.
+  // At index 3, the location of the 1st residual of the
+  // 2nd parameter block is stored.
+  // ...and so on
+  //
+  // For residual block 1,
+  // At index 6, the location of the 1st residual of the
+  // 1st parameter block is stored.
+  // ...and so on.
+  //
+  // jacobian_layout_ points to locations for each full-sized jacobian block
+  // per residual block, while jacobian_per_residual_layout_ points to locations
+  // for each partial jacobian block *per residual*. The structure of
+  // jacobian_per_residual_layout_ is designed to be compatible with
+  // other sparse matrix formats such as CompressedRowSparseMatrix, where
+  // partial jacobian blocks *per residual* for the same residual block
+  // are not stored contiguosly.
+  std::vector<int> jacobian_per_residual_layout_;
+
+  // Vector indexed by the values in jacobian_per_residual_layout_.
+  // This vector contains the locations of the start of the
+  // jacobian blocks per residual.
+  std::vector<int> jacobian_per_residual_offsets_;
+
+  // The total number of non-zero values in the jacobian.
+  int num_jacobian_values_;
 };
 
 }  // namespace ceres::internal

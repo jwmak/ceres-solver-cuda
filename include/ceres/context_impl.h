@@ -49,7 +49,7 @@
 #include "cusparse.h"
 #endif  // CERES_NO_CUDA
 
-#include "ceres/thread_pool.h"
+#include "thread_pool.h"
 
 namespace ceres::internal {
 

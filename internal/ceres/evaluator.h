@@ -52,6 +52,7 @@ namespace internal {
 
 class Program;
 class SparseMatrix;
+class RegisteredCUDAEvaluators;
 
 // The Evaluator interface offers a way to interact with a least squares cost
 // function that is useful for an optimizer that wants to minimize the least
@@ -70,6 +71,8 @@ class CERES_NO_EXPORT Evaluator {
     bool dynamic_sparsity = false;
     ContextImpl* context = nullptr;
     EvaluationCallback* evaluation_callback = nullptr;
+    bool use_cuda = false;
+    RegisteredCUDAEvaluators* registered_cuda_evaluators = nullptr;
   };
 
   static std::unique_ptr<Evaluator> Create(const Options& options,

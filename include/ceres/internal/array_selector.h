@@ -35,11 +35,13 @@
 #include <array>
 #include <vector>
 
+#include "ceres/internal/cuda_defs.h"
 #include "ceres/internal/fixed_array.h"
 #include "ceres/types.h"
 
 namespace ceres::internal {
 
+#if !defined(DEVICE_CODE)
 // StaticFixedArray selects the best array implementation based on template
 // arguments. If the size is not known at compile-time, pass
 // ceres::DYNAMIC as a size-template argument.
@@ -89,6 +91,23 @@ struct ArraySelector<T, num_elements, max_num_elements_on_stack, false, false>
     CHECK_EQ(s, num_elements);
   }
 };
+
+#else
+// std::vector and std::array are not supported in CUDA
+template <typename T,
+          int num_elements,
+          int max_num_elements_on_stack>
+struct ArraySelector {
+  HOST_DEVICE ArraySelector(int s) {}
+  HOST_DEVICE T& operator[](int index) { return array_vals[index]; }
+  HOST_DEVICE const T& operator[](int index) const { return array_vals[index]; }
+
+  HOST_DEVICE T* data() { return array_vals; }
+
+  T array_vals[num_elements];
+};
+
+#endif  // !defined(DEVICE_CODE)
 
 }  // namespace ceres::internal
 

@@ -34,6 +34,7 @@
 #include <array>
 #include <utility>
 
+#include "ceres/internal/cuda_defs.h"
 #include "ceres/internal/integer_sequence_algorithm.h"
 
 namespace ceres::internal {
@@ -78,6 +79,29 @@ class ParameterDims {
     return GetUnpackedParameters(ptr, Offsets());
   }
 
+  template <typename T>
+  struct UnpackedParameters {
+    template <int ParamNum, int PtrOffset>
+    HOST_DEVICE inline void CreateUnpackedParameters(T* ptr, std::integer_sequence<int, PtrOffset>) {
+      unpacked_parameters[ParamNum] = ptr + PtrOffset;
+    }
+
+    template <int ParamNum, int PtrOffset, int... PtrOffsets>
+    HOST_DEVICE inline void CreateUnpackedParameters(T* ptr, std::integer_sequence<int, PtrOffset, PtrOffsets...>) {
+      unpacked_parameters[ParamNum] = ptr + PtrOffset;
+      CreateUnpackedParameters<ParamNum + 1>(ptr, std::integer_sequence<int, PtrOffsets...>());
+    }
+
+    HOST_DEVICE UnpackedParameters(T* ptr) {
+      using Offsets = ExclusiveScan<Parameters>;
+      CreateUnpackedParameters<0>(ptr, Offsets());
+    }
+
+    HOST_DEVICE T const* const* data() { return (T const* const*)(&unpacked_parameters); }
+
+    T* unpacked_parameters[kNumParameterBlocks];
+  };
+
  private:
   template <typename T, int... Indices>
   static inline std::array<T*, kNumParameterBlocks> GetUnpackedParameters(
@@ -85,15 +109,25 @@ class ParameterDims {
     return std::array<T*, kNumParameterBlocks>{{ptr + Indices...}};
   }
 
+// std::array is not supported on all CUDA architectures.
+#if defined(DEVICE_CODE)
+  static constexpr int params_[kNumParameterBlocks]{Ns...};
+#else
   static constexpr std::array<int, kNumParameterBlocks> params_{Ns...};
+#endif  // defined(DEVICE_CODE)
 };
 
 // Even static constexpr member variables needs to be defined (not only
 // declared). As the ParameterDims class is tempalted this definition must
 // be in the header file.
+#if defined(DEVICE_CODE)
+template <bool IsDynamic, int... Ns>
+constexpr int ParameterDims<IsDynamic, Ns...>::params_[ParameterDims<IsDynamic, Ns...>::kNumParameterBlocks];
+#else
 template <bool IsDynamic, int... Ns>
 constexpr std::array<int, ParameterDims<IsDynamic, Ns...>::kNumParameterBlocks>
     ParameterDims<IsDynamic, Ns...>::params_;
+#endif  // defined(DEVICE_CODE)
 
 // Using declarations for static and dynamic parameter dims. This makes client
 // code easier to read.

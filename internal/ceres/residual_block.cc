@@ -35,7 +35,7 @@
 #include <cstddef>
 #include <vector>
 
-#include "ceres/corrector.h"
+#include "ceres/internal/corrector.h"
 #include "ceres/cost_function.h"
 #include "ceres/internal/eigen.h"
 #include "ceres/internal/fixed_array.h"
@@ -156,13 +156,21 @@ bool ResidualBlock::Evaluate(const bool apply_loss_function,
     }
   }
 
-  if (loss_function_ == nullptr || !apply_loss_function) {
+  if ((!residual_block_cuda_ || !residual_block_cuda_->HasLossFunction()) &&
+      (loss_function_ == nullptr || !apply_loss_function)) {
     *cost = 0.5 * squared_norm;
     return true;
   }
 
+  // If the residual block has a valid pointer to a ResidualBlockCUDA,
+  // then loss_function_ would be a nullptr. But the loss function is
+  // stored in the ResidualBlockCUDA as a LossFunctionCUDA. Apply this
+  // loss function to the cost.
   double rho[3];
-  loss_function_->Evaluate(squared_norm, rho);
+  if (!residual_block_cuda_)
+    loss_function_->Evaluate(squared_norm, rho);
+  else
+    residual_block_cuda_->EvaluateLossFunction(squared_norm, rho);
   *cost = 0.5 * rho[0];
 
   // No jacobians and not outputting residuals? All done. Doing an early exit
