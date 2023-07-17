@@ -1,7 +1,7 @@
 Ceres Solver with GPU Support for Auto-Differentiated Cost Functions
 ====================================================================
 
-This code modifies Ceres Solver to support the evaluation and auto-differentiation of cost functions
+This [code](https://github.com/jwmak/ceres-solver-cuda) modifies Ceres Solver to support the evaluation and auto-differentiation of cost functions
 in parallel on the GPU.
 The original Ceres Solver can be found at: https://github.com/ceres-solver/ceres-solver 
 
